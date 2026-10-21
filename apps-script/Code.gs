@@ -20,14 +20,15 @@
  *   POST {action:"changePin", token, oldPin, newPin}
  *   POST {action:"saveUsage", token, ...} → บันทึกจำนวนการใช้งาน 1 เดือน × 1 ประเภทการตรวจ
  *   POST {action:"saveKpi",   token, ...} → บันทึกตัวชี้วัด 1 เดือน
- *   POST {action:"saveConfig", token, table:"wards"|"kpiConfig", rows, renames?}
+ *   POST {action:"saveConfig", token, table:"wards"|"kpiConfig"|"devices", rows, renames?}
  *                                         → แก้รายการหอผู้ป่วย / ตัวชี้วัดคุณภาพ (เพิ่ม ลบ แก้ไข เรียงลำดับ)
  */
 
 var TAB = {
   usage: "ข้อมูลการใช้งาน",
   wards: "หอผู้ป่วย",
-  devices: "เครื่อง Glucose",
+  devices: "เครื่อง Glucose", // เดิม (อ่านอย่างเดียว) — ใช้เมื่อแท็บประวัติด้านล่างยังว่าง
+  fleet: "เครื่อง POCT (ประวัติ)",
   kpi: "ตัวชี้วัด",
   kpiConfig: "ตัวชี้วัดคุณภาพ (ตั้งค่า)",
   users: "ผู้ใช้งาน",
@@ -323,6 +324,8 @@ function readAllTabs_() {
   [TAB.usage, TAB.wards, TAB.devices, TAB.kpi, TAB.kpiConfig].forEach(function (name) {
     out[name] = rows_(name);
   });
+  // แท็บประวัติเครื่องสร้างตอนบันทึกครั้งแรก — ยังไม่มีก็ไม่เป็นไร
+  out[TAB.fleet] = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB.fleet) ? rows_(TAB.fleet) : [];
   return out;
 }
 
@@ -521,18 +524,48 @@ function saveConfig_(body, staffId) {
       var dec = Number(r[10]); if (!(dec >= 0 && dec <= 4)) dec = 2;
       rows.push([id, grp, nm, sn, cr, kind, l1, l2, target, dir, dec, i + 1, boolCell_(r[12])]);
     });
+  } else if (table === "devices") {
+    // [test, sn, ward, fromYear, fromMonth, toYear, toMonth, note] — 1 แถว = เครื่องนี้อยู่หอนี้ช่วงนี้
+    var known = {};
+    rows_(TAB.wards).forEach(function (w) { known[String(w[0]).trim() + "|" + String(w[1]).trim()] = true; });
+    var spans = {};
+    body.rows.forEach(function (r) {
+      var test = String(r[0] || "").trim();
+      if (TESTS.indexOf(test) < 0) throw new Error("ประเภทการตรวจไม่ถูกต้อง: " + test);
+      var sn = cleanText_(r[1], "SN", 40, true), ward = cleanText_(r[2], "ชื่อหอ", 80, true);
+      if (!known[test + "|" + ward]) throw new Error('เครื่อง ' + sn + ': ไม่พบหอ "' + ward + '" ใน ' + test + " (เพิ่มหอก่อน)");
+      var fy = Number(r[3]), fm = Number(r[4]);
+      checkYearMonth_(fy, fm);
+      var ty = r[5] === "" || r[5] == null ? null : Number(r[5]), tm = r[6] === "" || r[6] == null ? null : Number(r[6]);
+      if ((ty === null) !== (tm === null)) throw new Error("เครื่อง " + sn + ": ระบุทั้งปีและเดือนสิ้นสุด หรือเว้นว่างทั้งคู่");
+      if (ty !== null) checkYearMonth_(ty, tm);
+      var a = fy * 12 + fm, b = ty === null ? 1e9 : ty * 12 + tm;
+      if (b < a) throw new Error("เครื่อง " + sn + ": เดือนสิ้นสุดอยู่ก่อนเดือนเริ่มต้น");
+      var key = test + "|" + sn;
+      (spans[key] = spans[key] || []).forEach(function (o) {
+        if (a <= o[1] && o[0] <= b) throw new Error("เครื่อง " + sn + ": ช่วงเวลาที่อยู่ในหอซ้อนทับกัน");
+      });
+      spans[key].push([a, b]);
+      rows.push([test, sn, ward, fy, fm, ty === null ? "" : ty, tm === null ? "" : tm, cleanText_(r[7], "หมายเหตุ", 200, false)]);
+    });
   } else {
     throw new Error("ไม่รู้จักตาราง: " + table);
   }
-  if (rows.length === 0) throw new Error("ต้องมีอย่างน้อย 1 รายการ");
+  if (rows.length === 0 && table !== "devices") throw new Error("ต้องมีอย่างน้อย 1 รายการ");
   if (rows.length > 300) throw new Error("รายการมากเกินไป");
 
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    var name = table === "wards" ? TAB.wards : TAB.kpiConfig;
-    var width = table === "wards" ? 4 : 13;
-    var sh = sheet_(name);
+    var name = table === "wards" ? TAB.wards : table === "devices" ? TAB.fleet : TAB.kpiConfig;
+    var width = table === "wards" ? 4 : table === "devices" ? 8 : 13;
+    var sh;
+    if (table === "devices" && !SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name)) {
+      sh = SpreadsheetApp.getActiveSpreadsheet().insertSheet(name);
+      sh.appendRow(["ประเภทการตรวจ", "SN", "หอผู้ป่วย", "เริ่ม ปี (พ.ศ.)", "เริ่ม เดือน", "ถึง ปี (พ.ศ.)", "ถึง เดือน", "หมายเหตุ"]);
+    } else {
+      sh = sheet_(name);
+    }
     var oldCount = Math.max(sh.getLastRow() - 1, 0);
 
     var renamed = 0;

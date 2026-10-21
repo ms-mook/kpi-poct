@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Loader2, Plus, Save, Trash2, Undo2 } from "lucide-react";
+import { ArrowDown, ArrowRightLeft, ArrowUp, ChevronDown, ChevronUp, Loader2, Plus, Save, Trash2, Undo2 } from "lucide-react";
 import { StatusBanner } from "../StatusBanner";
-import { TESTS, TEST_META, type TestType } from "@/lib/constants";
+import { MONTH_ABBR_TH, TESTS, TEST_META, type TestType } from "@/lib/constants";
 import type { Dataset, KpiConfig, KpiKind } from "@/lib/data";
 import { saveConfig } from "@/lib/backend";
 
@@ -12,20 +12,22 @@ type Props = { data: Dataset; onSaved: () => Promise<void> | void; notice: strin
 /** Back-office settings: wards and quality indicators — add, edit, reorder,
  * deactivate, delete — without opening the Google Sheet. */
 export function ConfigManager({ data, onSaved }: Pick<Props, "data" | "onSaved">) {
-  const [section, setSection] = useState<"wards" | "kpi">("wards");
+  const [section, setSection] = useState<"wards" | "devices" | "kpi">("wards");
   const [notice, setNotice] = useState<string | null>(null);
   // Editors remount with fresh state whenever the data is reloaded (after a save).
   const k = data.loadedAt.getTime();
   return (
     <div className="space-y-4">
       <div className="join">
-        {([["wards", "หอผู้ป่วย"], ["kpi", "ตัวชี้วัดคุณภาพ"]] as const).map(([sk, label]) => (
+        {([["wards", "หอผู้ป่วย"], ["devices", "เครื่อง / SN"], ["kpi", "ตัวชี้วัดคุณภาพ"]] as const).map(([sk, label]) => (
           <button key={sk} onClick={() => { setSection(sk); setNotice(null); }} aria-pressed={section === sk}
             className={`btn join-item btn-sm ${section === sk ? "btn-primary" : "border-base-content/10 bg-base-200/60 text-base-content/70"}`}>{label}</button>
         ))}
       </div>
       {section === "wards"
         ? <WardsEditor key={`w${k}`} data={data} onSaved={onSaved} notice={notice} setNotice={setNotice} />
+        : section === "devices"
+        ? <DevicesEditor key={`d${k}`} data={data} onSaved={onSaved} notice={notice} setNotice={setNotice} />
         : <KpiEditor key={`k${k}`} data={data} onSaved={onSaved} notice={notice} setNotice={setNotice} />}
     </div>
   );
@@ -312,6 +314,166 @@ function KpiEditor({ data, onSaved, notice, setNotice }: Props) {
 
       <button className="btn btn-outline btn-sm gap-1.5" onClick={add}><Plus size={15} /> เพิ่มตัวชี้วัด</button>
       <SaveBar dirty={dirty} busy={busy || anyInvalid} onSave={save} onReset={() => { setRows(initial); setError(null); setOpen(null); }} error={error} done={notice} />
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Devices (SN) — one row per stay of a meter in a ward
+// ---------------------------------------------------------------------------
+
+type DevDraft = { key: number; test: TestType; sn: string; ward: string; fy: string; fm: string; ty: string; tm: string; note: string };
+const nowBE = new Date().getFullYear() + 543;
+const YEARS = Array.from({ length: nowBE + 1 - 2560 + 1 }, (_, i) => 2560 + i);
+const idx = (y: string, m: string) => Number(y) * 12 + Number(m);
+
+function DevicesEditor({ data, onSaved, notice, setNotice }: Props) {
+  const initial = useMemo<DevDraft[]>(() => data.devices
+    .map((d) => ({ test: d.test, sn: d.sn, ward: d.ward, fy: String(d.fromYear), fm: String(d.fromMonth),
+      ty: d.toYear == null ? "" : String(d.toYear), tm: d.toMonth == null ? "" : String(d.toMonth), note: d.note }))
+    .sort((a, b) => a.test.localeCompare(b.test) || a.sn.localeCompare(b.sn) || idx(a.fy, a.fm) - idx(b.fy, b.fm))
+    .map((d, i) => ({ ...d, key: i })), [data.devices]);
+  const [rows, setRows] = useState<DevDraft[]>(initial);
+  const [test, setTest] = useState<TestType>("Glucose");
+  const [nextKey, setNextKey] = useState(10000);
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const wardNames = useMemo(() => data.wards.filter((w) => w.test === test).map((w) => w.ward), [data.wards, test]);
+  const sig = (r: DevDraft[]) => JSON.stringify(r.map((x) => [x.test, x.sn, x.ward, x.fy, x.fm, x.ty, x.tm, x.note]));
+  const dirty = sig(rows) !== sig(initial);
+
+  const errorsOf = (r: DevDraft) => {
+    const e: string[] = [];
+    if (!r.sn.trim()) e.push("ต้องมี SN");
+    if (!r.ward) e.push("เลือกหอ");
+    else if (!data.wards.some((w) => w.test === r.test && w.ward === r.ward)) e.push("ไม่พบหอนี้ในรายการหอ");
+    if ((r.ty === "") !== (r.tm === "")) e.push("ระบุปีและเดือนสิ้นสุดให้ครบ หรือเว้นว่าง");
+    else if (r.ty !== "" && idx(r.ty, r.tm) < idx(r.fy, r.fm)) e.push("สิ้นสุดก่อนเริ่ม");
+    const a = idx(r.fy, r.fm), b = r.ty === "" ? 1e9 : idx(r.ty, r.tm);
+    if (rows.some((o) => o.key !== r.key && o.test === r.test && o.sn.trim() === r.sn.trim() && r.sn.trim() &&
+      a <= (o.ty === "" ? 1e9 : idx(o.ty, o.tm)) && idx(o.fy, o.fm) <= b)) e.push("ช่วงเวลาซ้อนกับรายการอื่นของ SN เดียวกัน");
+    return e;
+  };
+  const list = rows.filter((r) => r.test === test && (!q.trim() || (r.sn + r.ward).toLowerCase().includes(q.trim().toLowerCase())));
+  const anyInvalid = rows.some((r) => errorsOf(r).length > 0);
+
+  const patch = (key: number, p: Partial<DevDraft>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
+  function add(base?: Partial<DevDraft>) {
+    const key = nextKey; setNextKey(key + 1);
+    const m = new Date().getMonth() + 1;
+    setRows((rs) => [...rs, { key, test, sn: "", ward: "", fy: String(nowBE), fm: String(m), ty: "", tm: "", note: "", ...base }]);
+  }
+  /** Close the open stay at the month before the move and open a new one. */
+  function moveDevice(r: DevDraft) {
+    const m = new Date().getMonth() + 1, y = nowBE;
+    const prevIdx = y * 12 + m - 1 - 1; // month before this one (0-based month math)
+    const py = Math.floor(prevIdx / 12), pm = (prevIdx % 12) + 1;
+    setRows((rs) => rs.map((x) => (x.key === r.key ? { ...x, ty: String(py), tm: String(pm) } : x)));
+    add({ sn: r.sn, ward: "", fy: String(y), fm: String(m) });
+  }
+  async function save() {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const res = await saveConfig({
+        table: "devices",
+        rows: rows.map((r) => [r.test, r.sn.trim(), r.ward, Number(r.fy), Number(r.fm), r.ty === "" ? "" : Number(r.ty), r.tm === "" ? "" : Number(r.tm), r.note.trim()]),
+      });
+      setNotice(`บันทึกแล้ว ${res.count} รายการ`);
+      await onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally { setBusy(false); }
+  }
+
+  const sel = "select select-sm select-bordered bg-base-200/60";
+  const sns = new Set(rows.filter((r) => r.test === test && r.sn.trim()).map((r) => r.sn.trim())).size;
+  return (
+    <section className="glass-panel space-y-4 rounded-box p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-base-content">เครื่องตรวจ (SN) และประวัติการอยู่หอ</h2>
+          <p className="mt-0.5 text-xs text-base-content/60">
+            1 แถว = เครื่องนี้อยู่หอนี้ช่วงนี้ — ถ้าเครื่องถูกย้ายหรือส่งซ่อมแล้วย้ายกลับ ให้กด “ย้ายหอ” เพื่อปิดช่วงเดิมและเริ่มช่วงใหม่ (ถึง = ว่าง หมายถึงอยู่ปัจจุบัน)
+          </p>
+        </div>
+        <div className="join">
+          {TESTS.map((t) => (
+            <button key={t} onClick={() => setTest(t)} className={`btn join-item btn-sm ${test === t ? "btn-primary" : "border-base-content/10 bg-base-200/60 text-base-content/70"}`}>
+              {TEST_META[t].label} <span className="opacity-70">({new Set(rows.filter((r) => r.test === t && r.sn.trim()).map((r) => r.sn.trim())).size} เครื่อง)</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ค้นหา SN หรือชื่อหอ" aria-label="ค้นหา SN หรือชื่อหอ" className="input input-sm input-bordered w-64 bg-base-200/60" />
+        <span className="text-xs text-base-content/55">{list.length} รายการ · {sns} เครื่อง</span>
+        <button className="btn btn-outline btn-sm ml-auto gap-1.5" onClick={() => add()}><Plus size={15} /> เพิ่มเครื่อง</button>
+      </div>
+
+      <div tabIndex={0} role="region" aria-label="รายการเครื่องตรวจ" className="max-h-[36rem] overflow-auto rounded-field border border-base-content/8 focus-visible:outline-2 focus-visible:outline-primary">
+        <table className="w-full min-w-[60rem] border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr className="text-left text-base-content/70">
+              {["SN", "หอผู้ป่วย", "อยู่ตั้งแต่", "ถึง (ว่าง = ปัจจุบัน)", "หมายเหตุ", ""].map((h) => (
+                <th key={h || "act"} className="sticky top-0 z-10 bg-base-200 px-2 py-2 font-medium">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((r) => {
+              const errs = errorsOf(r);
+              const open = r.ty === "";
+              return (
+                <tr key={r.key} className={errs.length ? "bg-error/8" : ""}>
+                  <td className="border-t border-base-content/6 px-2 py-1.5 align-top">
+                    <input value={r.sn} onChange={(e) => patch(r.key, { sn: e.target.value })} aria-label="SN" className={`input input-sm input-bordered w-40 bg-base-200/60 font-mono ${!r.sn.trim() ? "input-error" : ""}`} />
+                  </td>
+                  <td className="border-t border-base-content/6 px-2 py-1.5 align-top">
+                    <select value={r.ward} onChange={(e) => patch(r.key, { ward: e.target.value })} aria-label="หอผู้ป่วย" className={`${sel} w-52 ${!r.ward ? "select-error" : ""}`}>
+                      <option value="">— เลือกหอ —</option>
+                      {(r.test === test ? wardNames : data.wards.filter((w) => w.test === r.test).map((w) => w.ward)).map((w) => <option key={w} value={w}>{w}</option>)}
+                      {r.ward && !wardNames.includes(r.ward) && <option value={r.ward}>{r.ward} (ไม่อยู่ในรายการ)</option>}
+                    </select>
+                  </td>
+                  <td className="border-t border-base-content/6 px-2 py-1.5 align-top whitespace-nowrap">
+                    <select value={r.fm} onChange={(e) => patch(r.key, { fm: e.target.value })} aria-label="เดือนเริ่ม" className={`${sel} w-20`}>
+                      {MONTH_ABBR_TH.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                    </select>{" "}
+                    <select value={r.fy} onChange={(e) => patch(r.key, { fy: e.target.value })} aria-label="ปีเริ่ม" className={`${sel} w-24`}>
+                      {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </td>
+                  <td className="border-t border-base-content/6 px-2 py-1.5 align-top whitespace-nowrap">
+                    <select value={r.tm} onChange={(e) => patch(r.key, { tm: e.target.value, ty: r.ty || String(nowBE) })} aria-label="เดือนสิ้นสุด" className={`${sel} w-20`}>
+                      <option value="">—</option>
+                      {MONTH_ABBR_TH.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                    </select>{" "}
+                    <select value={r.ty} onChange={(e) => patch(r.key, { ty: e.target.value, tm: r.tm || "9" })} aria-label="ปีสิ้นสุด" className={`${sel} w-24`}>
+                      <option value="">ปัจจุบัน</option>
+                      {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                    {errs.length > 0 && <p className="mt-1 text-error">{errs.join(" · ")}</p>}
+                  </td>
+                  <td className="border-t border-base-content/6 px-2 py-1.5 align-top">
+                    <input value={r.note} onChange={(e) => patch(r.key, { note: e.target.value })} aria-label="หมายเหตุ" placeholder="เช่น ส่งซ่อม / ย้ายมาจาก…" className="input input-sm input-bordered w-56 bg-base-200/60" />
+                  </td>
+                  <td className="border-t border-base-content/6 px-2 py-1.5 align-top whitespace-nowrap">
+                    {open && r.sn.trim() && r.ward && (
+                      <button className="btn btn-ghost btn-xs gap-1" onClick={() => moveDevice(r)} title="ปิดช่วงนี้ที่สิ้นเดือนก่อน แล้วเริ่มช่วงใหม่ในหออื่น"><ArrowRightLeft size={13} /> ย้ายหอ</button>
+                    )}
+                    <button className="btn btn-ghost btn-xs btn-square text-error" aria-label={`ลบ ${r.sn || "แถวนี้"}`} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}><Trash2 size={14} /></button>
+                  </td>
+                </tr>
+              );
+            })}
+            {list.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-base-content/55">ยังไม่มีเครื่องใน {test}{q ? " ที่ตรงกับคำค้น" : ""}</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <SaveBar dirty={dirty} busy={busy || anyInvalid} onSave={save} onReset={() => { setRows(initial); setError(null); }} error={error} done={notice} />
     </section>
   );
 }

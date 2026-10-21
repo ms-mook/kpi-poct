@@ -97,6 +97,19 @@ t("formula-like kpi text rejected", call("POST", { body: { action: "saveConfig",
 r = call("POST", { body: { action: "saveKpi", token, year: 2569, month: 10, entries: [{ indicator: "new_kpi", field: "new_kpi_pct", value: 85 }] } });
 t("new kpi accepts entries", r.ok && r.added === 1, JSON.stringify(r));
 
+// ---- devices (SN history) ----
+const W = "หอผู้ป่วย 2ข", W2 = "หอผู้ป่วย 3ก";
+const dv = (rows) => call("POST", { body: { action: "saveConfig", token, table: "devices", rows } });
+t("devices: first save creates tab", (r = dv([["Glucose", "UU1", W, 2566, 10, 2568, 3, ""], ["Glucose", "UU1", W2, 2568, 4, "", "", "ย้ายมาจาก 2ข"]])).ok && r.count === 2, JSON.stringify(r));
+t("devices: read returns new tab", call("GET", { query: { action: "read" } }).tabs["เครื่อง POCT (ประวัติ)"].length === 2);
+t("devices: overlapping stays rejected", dv([["Glucose", "UU1", W, 2566, 10, 2568, 6, ""], ["Glucose", "UU1", W2, 2568, 4, "", "", ""]]).ok === false);
+t("devices: end before start rejected", dv([["Glucose", "UU1", W, 2568, 10, 2568, 3, ""]]).ok === false);
+t("devices: half-open end rejected", dv([["Glucose", "UU1", W, 2568, 10, 2569, "", ""]]).ok === false);
+t("devices: unknown ward rejected", dv([["Glucose", "UU1", "หอปลอม", 2568, 10, "", "", ""]]).ok === false);
+t("devices: formula SN rejected", dv([["Glucose", "=1+1", W, 2568, 10, "", "", ""]]).ok === false);
+t("devices: same SN in other test is independent", dv([["Glucose", "X1", W, 2568, 10, "", "", ""], ["Blood gas", "X1", "RESUS", 2568, 10, "", "", ""]]).ok);
+t("devices: no token rejected", call("POST", { body: { action: "saveConfig", table: "devices", rows: [] } }).auth === true);
+
 const log = sheets.get("บันทึกการแก้ไข").data;
 t("audit log records staff ID", log.some(x => x[1] === "DEV" && x[2] === "saveUsage"));
 console.log(`\n${pass} passed, ${fail} failed`);

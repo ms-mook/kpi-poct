@@ -546,9 +546,7 @@ function WardDetail({ data, usage, test, fy, ward, grouped, anomalySet, onClose 
   const hasPrev = prev.some((v) => v != null);
   const total = cur.reduce<number>((s, v) => s + (v ?? 0), 0);
   const days = months.reduce((s, m, i) => s + (cur[i] != null ? daysInMonth(m.year, m.month) : 0), 0);
-  const devices = test === "Glucose"
-    ? data.devices.filter((d) => (grouped ? wardGroupName(d.ward) === ward : d.ward === ward))
-    : [];
+  const devices = data.devices.filter((d) => d.test === test && (grouped ? wardGroupName(d.ward) === ward : d.ward === ward));
   const chart = months.map((m, i) => ({
     label: MONTH_ABBR_TH[m.month - 1], full: `${MONTH_NAMES_TH[m.month - 1]} ${m.year}`, current: cur[i], previous: prev[i],
     flagged: anomalySet.has(anomalyKey(ward, m.year, m.month)),
@@ -608,7 +606,7 @@ function WardDetail({ data, usage, test, fy, ward, grouped, anomalySet, onClose 
               <span key={`${d.ward}-${d.sn}`} className="badge badge-sm h-auto gap-1.5 border-base-content/10 bg-base-200/70 py-1 font-mono text-[11px]">
                 {d.sn}
                 <span className="font-sans text-base-content/50">
-                  {grouped && d.ward !== ward && `${d.ward.replace(ward, "").trim()} · `}ปีงบ {d.fromFy ?? "?"}–{d.toFy ?? "ปัจจุบัน"}
+                  {grouped && d.ward !== ward && `${d.ward.replace(ward, "").trim()} · `}{MONTH_ABBR_TH[d.fromMonth - 1]} {String(d.fromYear).slice(-2)} – {d.toYear != null && d.toMonth != null ? `${MONTH_ABBR_TH[d.toMonth - 1]} ${String(d.toYear).slice(-2)}` : "ปัจจุบัน"}
                 </span>
               </span>
             ))}

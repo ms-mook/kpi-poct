@@ -24,14 +24,24 @@ export const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID ?? "";
 export const TAB = {
   usage: "ข้อมูลการใช้งาน",
   wards: "หอผู้ป่วย",
-  devices: "เครื่อง Glucose",
+  devices: "เครื่อง Glucose", // legacy (ward, SN, from FY, to FY) — read only when the history tab below is empty
+  fleet: "เครื่อง POCT (ประวัติ)",
   kpi: "ตัวชี้วัด",
   kpiConfig: "ตัวชี้วัดคุณภาพ (ตั้งค่า)",
 } as const;
 
 export type UsageRow = { year: number; month: number; test: TestType; ward: string; count: number };
 export type WardRow = { test: TestType; ward: string; order: number; active: boolean };
-export type DeviceRow = { ward: string; sn: string; fromFy: number | null; toFy: number | null };
+/** One SN's stay in one ward. to* = null → still there ("ปัจจุบัน"). A meter that moves
+ * between wards has one row per stay. */
+export type DeviceRow = {
+  test: TestType; sn: string; ward: string;
+  fromYear: number; fromMonth: number; toYear: number | null; toMonth: number | null;
+  note: string;
+  /** Derived, for the older "ปีงบ x–y" labels. */
+  fromFy: number; toFy: number | null;
+};
+const fyOf = (y: number, m: number) => (m >= 10 ? y + 1 : y);
 /** value === null means "ND" (ไม่ได้ดำเนินการ): recorded on purpose, never used in any calculation. */
 export type KpiRow = { year: number; month: number; indicator: string; field: string; value: number | null };
 
@@ -105,10 +115,26 @@ function parseWards(rows: Raw): WardRow[] {
   return out.sort((a, b) => a.order - b.order);
 }
 
-function parseDevices(rows: Raw): DeviceRow[] {
-  return rows
-    .map(([ward, sn, from, to]) => ({ ward: str(ward), sn: str(sn), fromFy: num(from), toFy: num(to) }))
-    .filter((d) => d.ward && d.sn);
+function mkDevice(test: TestType, sn: string, ward: string, fy: number, fm: number, ty: number | null, tm: number | null, note: string): DeviceRow {
+  return { test, sn, ward, fromYear: fy, fromMonth: fm, toYear: ty, toMonth: tm, note, fromFy: fyOf(fy, fm), toFy: ty != null && tm != null ? fyOf(ty, tm) : null };
+}
+
+/** New history tab if it has rows; otherwise the legacy Glucose tab (FY → months). */
+function parseDevices(fleet: Raw, legacy: Raw): DeviceRow[] {
+  const out: DeviceRow[] = [];
+  for (const [t, sn, ward, fy, fm, ty, tm, note] of fleet) {
+    const test = str(t), y = num(fy), m = num(fm);
+    if (!isTest(test) || !str(sn) || !str(ward) || y == null || m == null) continue;
+    const ey = num(ty), em = num(tm);
+    out.push(mkDevice(test, str(sn), str(ward), y, m, ey != null && em != null ? ey : null, ey != null && em != null ? em : null, str(note)));
+  }
+  if (out.length) return out;
+  for (const [ward, sn, from, to] of legacy) {
+    const f = num(from), e = num(to);
+    if (!str(ward) || !str(sn) || f == null) continue;
+    out.push(mkDevice("Glucose", str(sn), str(ward), f - 1, 10, e ?? null, e != null ? 9 : null, ""));
+  }
+  return out;
 }
 
 function parseKpi(rows: Raw): KpiRow[] {
@@ -153,7 +179,7 @@ function build(get: (tab: string) => Raw, source: Dataset["source"], liveError?:
   return {
     usage: parseUsage(get(TAB.usage)),
     wards: parseWards(get(TAB.wards)),
-    devices: parseDevices(get(TAB.devices)),
+    devices: parseDevices(get(TAB.fleet), get(TAB.devices)),
     kpi: parseKpi(get(TAB.kpi)),
     kpiConfig: parseKpiConfig(get(TAB.kpiConfig)),
     source,
