@@ -436,6 +436,7 @@ body {
 
 /* Printable report: A4, always light, keep fills when saving as PDF. */
 @page { size: A4; margin: 12mm; }
+.report-font, .report-font * { font-family: "THSarabunPSK", "Noto Sans Thai", sans-serif !important; font-feature-settings: normal !important; }
 .report-sheet { color-scheme: light; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 @media print {
   html, body { background: #fff !important; background-image: none !important; }
