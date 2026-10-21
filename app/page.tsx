@@ -8,8 +8,8 @@ import { StatusBanner } from "@/components/StatusBanner";
 import { UsageSection } from "@/components/UsageSection";
 import { KpiSection } from "@/components/KpiSection";
 import { loadDataset, snapshotDataset, SHEET_ID, type Dataset } from "@/lib/data";
-import { availableFiscalYears } from "@/lib/aggregate";
-import { TESTS, TEST_META, type TestType } from "@/lib/constants";
+import { availableFiscalYears, hasMultiDeviceWards, latestMonth, monthlyTotals } from "@/lib/aggregate";
+import { fiscalYearMonths, MONTH_ABBR_TH, MONTH_NAMES_TH, TESTS, TEST_META, type TestType } from "@/lib/constants";
 
 type Tab = "usage" | "kpi";
 
@@ -21,6 +21,13 @@ export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>("usage");
   const [test, setTest] = useState<TestType>("Glucose");
   const [fy, setFy] = useState<number | null>(null);
+  // Glucose lists wards with 2-3 meters as separate rows ("4ข(1)", "4ข(2)").
+  // Default to one row per ward — that's how people talk about usage, and
+  // load shifting between two meters of the same ward otherwise looks like
+  // one ward collapsing while another booms.
+  const [grouped, setGrouped] = useState(true);
+  // null = ทั้งปีงบ; 0..11 = one month of the chosen fiscal year (0 = ต.ค.)
+  const [monthIdx, setMonthIdx] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -44,6 +51,21 @@ export default function DashboardPage() {
   // Keep the chosen year when switching tests if that test has it; otherwise
   // jump to that test's latest year (Blood gas only has ปีงบ 2569 so far).
   const viewFy = fy != null && years.includes(fy) ? fy : years[years.length - 1];
+  const multiDevice = hasMultiDeviceWards(data.usage, test);
+  const monthHasData = useMemo(
+    () => (viewFy ? monthlyTotals(data.usage, test, viewFy).map((v) => v != null) : []),
+    [data.usage, test, viewFy],
+  );
+  // A month picked for one year/test may not exist in another — fall back to
+  // the whole year instead of showing an empty month.
+  const viewMonth = monthIdx != null && monthHasData[monthIdx] ? monthIdx : null;
+  // "Data up to" is what a reader needs — not when the page happened to load.
+  const dataUntil = useMemo(() => {
+    const g = latestMonth(data.usage, "Glucose");
+    const b = latestMonth(data.usage, "Blood gas");
+    const pick = [g, b].filter(Boolean).sort((x, y) => y!.year * 100 + y!.month - (x!.year * 100 + x!.month))[0];
+    return pick ? `${MONTH_NAMES_TH[pick.month - 1]} ${pick.year}` : "—";
+  }, [data.usage]);
 
   return (
     <div className="w-full px-4 py-5 sm:px-6 lg:px-10 2xl:px-14">
@@ -82,7 +104,9 @@ export default function DashboardPage() {
             {data.source === "live" ? <Sheet size={12} /> : <Database size={12} />}
             {data.source === "live" ? "Google Sheet" : "Snapshot"}
           </span>
-          <span suppressHydrationWarning>อัปเดต {data.loadedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.</span>
+          <span suppressHydrationWarning title={`โหลดเมื่อ ${data.loadedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.`}>
+            ข้อมูลถึง {dataUntil}
+          </span>
           {SHEET_ID && (
             <button onClick={refresh} className="btn btn-ghost btn-xs btn-circle" aria-label="โหลดข้อมูลใหม่" disabled={loading}>
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
@@ -124,9 +148,30 @@ export default function DashboardPage() {
             >
               {[...years].reverse().map((y) => <option key={y} value={y}>ปีงบ {y}</option>)}
             </select>
+            <select
+              className="select select-sm select-bordered w-36 bg-base-200/60"
+              value={viewMonth ?? ""}
+              onChange={(e) => setMonthIdx(e.target.value === "" ? null : Number(e.target.value))}
+              aria-label="เดือน"
+            >
+              <option value="">ทั้งปีงบ</option>
+              {viewFy && fiscalYearMonths(viewFy).map((m, i) => (
+                <option key={i} value={i} disabled={!monthHasData[i]}>
+                  {MONTH_ABBR_TH[m.month - 1]} {m.year}{monthHasData[i] ? "" : " (ไม่มีข้อมูล)"}
+                </option>
+              ))}
+            </select>
+            {multiDevice && (
+              <label className="flex cursor-pointer items-center gap-2 rounded-field px-2 py-1 text-xs text-base-content/70"
+                title="หอที่มีเครื่องหลายเครื่อง เช่น 4ข(1), 4ข(2), 4ข(3)">
+                <input type="checkbox" className="toggle toggle-xs toggle-primary" checked={grouped}
+                  onChange={(e) => setGrouped(e.target.checked)} />
+                รวมเครื่องในหอเดียวกัน
+              </label>
+            )}
           </div>
           {viewFy ? (
-            <UsageSection key={`${test}-${viewFy}`} data={data} test={test} fy={viewFy} />
+            <UsageSection key={`${test}-${viewFy}-${grouped}`} data={data} test={test} fy={viewFy} grouped={grouped} monthIdx={viewMonth} />
           ) : (
             <StatusBanner type="info" message={`ยังไม่มีข้อมูลการใช้งาน ${test}`} />
           )}

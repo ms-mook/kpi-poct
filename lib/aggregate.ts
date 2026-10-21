@@ -70,6 +70,92 @@ export function monthTotal(usage: UsageRow[], test: TestType, year: number, mont
   return any ? total : null;
 }
 
+/** "หอผู้ป่วย 4ข(2)" → "หอผู้ป่วย 4ข": wards with several Glucose meters are
+ * listed once per meter; this folds them back into one ward. */
+export function wardGroupName(ward: string): string {
+  return ward.replace(/\s*\(\d+\)$/, "");
+}
+
+/** Usage rows with every meter of the same ward merged under one name. */
+export function groupUsageByWard(usage: UsageRow[]): UsageRow[] {
+  return usage.map((r) => (/\(\d+\)$/.test(r.ward) ? { ...r, ward: wardGroupName(r.ward) } : r));
+}
+
+export function hasMultiDeviceWards(usage: UsageRow[], test: TestType): boolean {
+  return usage.some((r) => r.test === test && /\(\d+\)$/.test(r.ward));
+}
+
+/** Per-ward totals for a fiscal year plus the same months of the previous
+ * fiscal year (like-for-like), for "which wards grew / dropped". */
+export function wardTotalsWithChange(usage: UsageRow[], test: TestType, fy: number) {
+  const cur = wardTotals(usage, test, fy);
+  return cur.map(({ ward, total }) => {
+    const a = wardMonthly(usage, test, ward, fy);
+    const b = wardMonthly(usage, test, ward, fy - 1);
+    let sa = 0, sb = 0, n = 0;
+    a.forEach((v, i) => {
+      if (v != null && b[i] != null) { sa += v; sb += b[i]!; n++; }
+    });
+    const change = n > 0 && sb > 0 ? ((sa - sb) / sb) * 100 : null;
+    return { ward, total, change };
+  });
+}
+
+/** Per-ward totals for one month, with change vs the same month a year
+ * earlier (seasonality-safe comparison). */
+export function wardTotalsForMonth(usage: UsageRow[], test: TestType, year: number, month: number) {
+  const cur = new Map<string, number>();
+  const prev = new Map<string, number>();
+  for (const r of usage) {
+    if (r.test !== test || r.month !== month) continue;
+    if (r.year === year) cur.set(r.ward, (cur.get(r.ward) ?? 0) + r.count);
+    else if (r.year === year - 1) prev.set(r.ward, (prev.get(r.ward) ?? 0) + r.count);
+  }
+  return Array.from(cur, ([ward, total]) => {
+    const p = prev.get(ward);
+    return { ward, total, change: p ? ((total - p) / p) * 100 : null };
+  }).sort((a, b) => b.total - a.total);
+}
+
+export type UsageAnomaly ={ ward: string; year: number; month: number; value: number; typical: number };
+
+/** Ward-months in the fiscal year that fell far below that ward's own normal
+ * level — usually a broken/missing meter, a closed ward, or a data-entry
+ * slip. "Normal" = median of the ward's previous 12 recorded months (needs
+ * ≥ 6). Wards averaging under `minTypical` a month are skipped: at that
+ * volume a quiet month is ordinary noise, not a signal. */
+export function detectAnomalies(
+  usage: UsageRow[], test: TestType, fy: number, { ratio = 0.4, minTypical = 100 } = {},
+): UsageAnomaly[] {
+  const byWard = new Map<string, Map<number, number>>();
+  for (const r of usage) {
+    if (r.test !== test) continue;
+    const m = byWard.get(r.ward) ?? new Map<number, number>();
+    m.set(key(r.year, r.month), (m.get(key(r.year, r.month)) ?? 0) + r.count);
+    byWard.set(r.ward, m);
+  }
+  const out: UsageAnomaly[] = [];
+  for (const [ward, months] of byWard) {
+    const keys = Array.from(months.keys()).sort((a, b) => a - b);
+    keys.forEach((k, i) => {
+      const year = Math.floor(k / 100), month = k % 100;
+      if (fiscalYearOf(year, month) !== fy) return;
+      const prev = keys.slice(Math.max(0, i - 12), i).map((x) => months.get(x)!);
+      if (prev.length < 6) return;
+      const sorted = [...prev].sort((a, b) => a - b);
+      const mid = sorted.length / 2;
+      const typical = sorted.length % 2 ? sorted[Math.floor(mid)] : (sorted[mid - 1] + sorted[mid]) / 2;
+      const value = months.get(k)!;
+      if (typical >= minTypical && value < typical * ratio) out.push({ ward, year, month, value, typical });
+    });
+  }
+  return out.sort((a, b) => b.year * 100 + b.month - (a.year * 100 + a.month) || a.value / a.typical - b.value / b.typical);
+}
+
+export function daysInMonth(year: number, month: number): number {
+  return new Date(year - 543, month, 0).getDate();
+}
+
 // ---------------------------------------------------------------------------
 // Quality indicators (ตัวชี้วัด)
 // ---------------------------------------------------------------------------
@@ -102,8 +188,13 @@ export function kpiResult(
       return v == null ? null : { value: v };
     }
     case "count": {
+      // A head-count alone can't be judged against "ร้อยละ 100". If the
+      // sheet also has `<id>_den` (ผู้ใช้งานทั้งหมดที่ต้องสอบ) the indicator
+      // becomes a real percentage with pass/fail.
       const v = field("count");
-      return v == null ? null : { value: v };
+      if (v == null) return null;
+      const d = field("den");
+      return d ? { value: (v / d) * 100, numerator: v, denominator: d } : { value: v };
     }
     case "ratio_pair": {
       const n = field("num"), d = field("den");
@@ -125,7 +216,8 @@ export function kpiResult(
  * `count` indicators have no denominator to compare against a % target, so
  * they carry no pass/fail. */
 export function kpiStatus(cfg: KpiConfig, r: KpiResult | null): "pass" | "fail" | null {
-  if (!r || cfg.kind === "count" || cfg.targetValue == null) return null;
+  if (!r || cfg.targetValue == null) return null;
+  if (cfg.kind === "count" && r.denominator == null) return null;
   return cfg.targetDirection === "min"
     ? (r.value <= cfg.targetValue ? "pass" : "fail")
     : (r.value >= cfg.targetValue ? "pass" : "fail");
@@ -145,6 +237,8 @@ export function kpiYearSummary(cfg: KpiConfig, kpi: KpiRow[], usage: UsageRow[],
   const series = kpiYearSeries(cfg, kpi, usage, fy).filter((s) => s.result);
   if (series.length === 0) return null;
   if (cfg.kind === "ratio_pair" || cfg.kind === "ratio_auto") {
+    // (count-with-denominator is a running head-count, so the latest month
+    // is the year figure — handled by the fall-through below.)
     const n = series.reduce((s, x) => s + (x.result!.numerator ?? 0), 0);
     const d = series.reduce((s, x) => s + (x.result!.denominator ?? 0), 0);
     return d ? { value: (n / d) * 100, numerator: n, denominator: d } : null;

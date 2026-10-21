@@ -11,6 +11,10 @@ import type { Dataset, KpiConfig } from "@/lib/data";
 import { availableKpiYears, kpiResult, kpiStatus, kpiYearSeries, kpiYearSummary, type KpiResult } from "@/lib/aggregate";
 import { useChartColors } from "@/lib/chart-colors";
 
+// Tailwind only ships classes it can see in source; these are built
+// dynamically in StatusBadge:
+// border-success/40 text-success/80 border-error/40 text-error/80 bg-success/15 text-success bg-error/15 text-error
+
 // Identity icon per indicator group — never a status color (PASS/FAIL owns
 // green/red on the badge next to it).
 const GROUP_ICON: Record<string, LucideIcon> = {
@@ -24,16 +28,47 @@ const GROUP_TONE = ["text-primary bg-primary/15", "text-accent bg-accent/15", "t
 
 function fmt(cfg: KpiConfig, r: KpiResult | null) {
   if (!r) return "—";
-  if (cfg.kind === "count") return `${r.value.toLocaleString()} คน`;
+  if (cfg.kind === "count" && r.denominator == null) return `${r.value.toLocaleString()} คน`;
   return `${r.value.toFixed(cfg.decimals)}%`;
 }
 
-function StatusBadge({ status }: { status: "pass" | "fail" | null }) {
+function StatusBadge({ status, carried }: { status: "pass" | "fail" | null; carried?: boolean }) {
   if (!status) return null;
-  return status === "pass" ? (
-    <span className="badge badge-sm gap-1 border-0 bg-success/15 text-success"><CheckCircle2 size={12} />ผ่าน</span>
-  ) : (
-    <span className="badge badge-sm gap-1 border-0 bg-error/15 text-error"><XCircle size={12} />ไม่ผ่าน</span>
+  // A result carried over from an earlier round is shown outlined, not
+  // filled, so a "ผ่าน" from months ago doesn't read as this month's pass.
+  const pass = status === "pass";
+  const Icon = pass ? CheckCircle2 : XCircle;
+  const tone = pass ? "success" : "error";
+  return (
+    <span className={`badge badge-sm shrink-0 gap-1 ${carried
+      ? `border-${tone}/40 bg-transparent text-${tone}/80`
+      : `border-0 bg-${tone}/15 text-${tone}`}`}>
+      <Icon size={12} />{pass ? "ผ่าน" : "ไม่ผ่าน"}{carried && " (รอบก่อน)"}
+    </span>
+  );
+}
+
+/** Indicators measured only a few times a year: a sparkline of 1-4 dots
+ * reads as a broken chart, so list each assessment round instead. */
+function RoundChips({ cfg, series }: {
+  cfg: KpiConfig;
+  series: { year: number; month: number; result: KpiResult | null }[];
+}) {
+  const rounds = series.filter((s) => s.result);
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {rounds.map((s) => {
+        const st = kpiStatus(cfg, s.result);
+        return (
+          <span key={`${s.year}-${s.month}`}
+            className={`inline-flex items-baseline gap-1.5 rounded-field border px-2 py-1 text-[11px] ${
+              st === "fail" ? "border-error/30 bg-error/8" : "border-base-content/8 bg-base-200/60"}`}>
+            <span className="text-base-content/50">{MONTH_ABBR_TH[s.month - 1]} {String(s.year).slice(-2)}</span>
+            <span className={`stat-figure-num font-semibold ${st === "fail" ? "text-error" : "text-base-content/85"}`}>{fmt(cfg, s.result)}</span>
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -133,15 +168,18 @@ export function KpiSection({ data }: { data: Dataset }) {
                   value: s.result?.value ?? null,
                 }));
                 const points = series.filter((s) => s.value != null).length;
+                // Monthly indicators get a trend line; ones assessed in a few
+                // rounds a year get one chip per round.
+                const sparse = points > 0 && points <= 4;
                 const sub = cfg.name.split(" — ")[1] ?? cfg.shortName;
                 const ratio = r?.numerator != null && r.denominator != null
                   ? `${r.numerator.toLocaleString()} / ${r.denominator.toLocaleString()}`
-                  : cfg.kind === "count" && r ? "จำนวนผู้ใช้งานที่สอบผ่าน" : "";
+                  : cfg.kind === "count" && r ? "ยังไม่มีจำนวนผู้ต้องสอบทั้งหมด จึงยังคิดร้อยละไม่ได้" : "";
                 return (
                   <div key={cfg.id} className="rounded-field border border-base-content/6 bg-base-content/3 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-xs text-base-content/65">{sub}</span>
-                      <StatusBadge status={status} />
+                      <StatusBadge status={status} carried={Boolean(fallback)} />
                     </div>
                     <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
                       <span className={`stat-figure-num text-2xl font-semibold ${!r ? "text-base-content/30" : fallback ? "text-base-content/70" : "text-base-content"}`}>
@@ -154,18 +192,19 @@ export function KpiSection({ data }: { data: Dataset }) {
                         ? `ผลล่าสุด ${MONTH_ABBR_TH[fallback.month - 1]} ${String(fallback.year).slice(-2)} · ไม่ได้ประเมินในเดือนนี้${ratio ? ` · ${ratio}` : ""}`
                         : !r ? "ยังไม่มีผลประเมินในปีงบนี้" : ratio || " "}
                     </div>
-                    {points >= 2 && (
+                    {sparse && <RoundChips cfg={cfg} series={yearSeries} />}
+                    {!sparse && points >= 2 && (
                       <div className="mt-2 h-16">
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={series} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
                             <XAxis dataKey="label" hide />
                             <YAxis hide domain={["auto", "auto"]} />
-                            {cfg.kind !== "count" && cfg.targetValue != null && (
+                            {(cfg.kind !== "count" || r?.denominator != null) && cfg.targetValue != null && (
                               <ReferenceLine y={cfg.targetValue} stroke={colors.muted} strokeDasharray="4 4" ifOverflow="hidden" />
                             )}
                             <Tooltip contentStyle={colors.tooltip}
                               labelFormatter={(_, p) => (p?.[0]?.payload as { full?: string })?.full ?? ""}
-                              formatter={(v) => [cfg.kind === "count" ? `${Number(v).toLocaleString()} คน` : `${Number(v).toFixed(cfg.decimals)}%`, cfg.shortName]} />
+                              formatter={(v) => [cfg.kind === "count" && r?.denominator == null ? `${Number(v).toLocaleString()} คน` : `${Number(v).toFixed(cfg.decimals)}%`, cfg.shortName]} />
                             <Line dataKey="value" stroke="var(--color-primary)" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
                           </LineChart>
                         </ResponsiveContainer>
