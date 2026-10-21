@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, AlertCircle, ArrowLeft, ClipboardCheck, Eye, EyeOff, IdCard, KeyRound, LineChart, Loader2, ShieldCheck } from "lucide-react";
+import { LogoFull, LogoMark } from "@/components/Logo";
+import { AlertCircle, ArrowLeft, ClipboardCheck, Eye, EyeOff, IdCard, KeyRound, LineChart, Loader2, ShieldCheck } from "lucide-react";
 import { login } from "@/lib/backend";
 import { HOME_HREF } from "@/lib/paths";
 
@@ -44,9 +45,7 @@ export function LoginForm() {
         {/* Brand panel — hidden on phones so the form is the first thing seen */}
         <aside className="hidden flex-col justify-between gap-8 bg-primary/10 p-8 md:flex">
           <div>
-            <span className="icon-badge flex h-12 w-12 items-center justify-center rounded-field bg-primary/20 text-primary">
-              <Activity size={24} strokeWidth={2.4} />
-            </span>
+            <LogoFull width={150} />
             <h2 className="mt-5 text-xl font-semibold text-base-content">KPI Dashboard — หน่วย POCT</h2>
             <p className="mt-1 text-sm text-base-content/65">หน่วยเจาะเลือดเก็บสิ่งส่งตรวจและ POCT · รพ.ศรีนครินทร์</p>
           </div>
@@ -59,9 +58,7 @@ export function LoginForm() {
 
         <form onSubmit={handleSubmit} className="p-6 sm:p-9">
           <div className="mb-6 flex items-center gap-3 md:hidden">
-            <span className="flex h-11 w-11 items-center justify-center rounded-field bg-primary/15 text-primary">
-              <Activity size={21} strokeWidth={2.4} />
-            </span>
+            <LogoMark size={48} />
             <p className="text-xs leading-snug text-base-content/65">KPI Dashboard — หน่วย POCT<br />รพ.ศรีนครินทร์</p>
           </div>
           <h1 className="text-xl font-semibold text-base-content">เข้าสู่ระบบหลังบ้าน</h1>

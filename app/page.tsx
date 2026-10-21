@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, Database, RefreshCw, Sheet } from "lucide-react";
+import { LogoMark } from "@/components/Logo";
+import { Database, RefreshCw, Sheet } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { LiveClock } from "@/components/LiveClock";
 import { StatusBanner } from "@/components/StatusBanner";
@@ -83,9 +84,7 @@ export default function DashboardPage() {
     <div className="w-full px-4 py-5 sm:px-6 lg:px-10 2xl:px-14">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="icon-badge flex h-11 w-11 shrink-0 items-center justify-center rounded-field bg-primary/15 text-primary">
-            <Activity size={22} strokeWidth={2.4} />
-          </span>
+          <LogoMark size={48} />
           <div className="leading-tight">
             <h1 className="text-lg font-semibold text-base-content sm:text-xl">KPI Dashboard — หน่วย POCT</h1>
             <p className="text-xs text-base-content/55">

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Activity, ArrowLeft, KeyRound, LayoutDashboard, Loader2, LogOut, ShieldCheck, Syringe } from "lucide-react";
+import { LogoMark } from "@/components/Logo";
+import { ArrowLeft, KeyRound, LayoutDashboard, Loader2, LogOut, ShieldCheck, Syringe } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { StatusBanner } from "@/components/StatusBanner";
 import { LoginForm } from "@/components/entry/LoginForm";
@@ -80,9 +81,7 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
     <main className="mx-auto w-full max-w-4xl px-4 py-5 pb-24 sm:px-6">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-base-content/8 pb-4">
         <div className="flex items-center gap-3">
-          <span className="icon-badge flex h-11 w-11 shrink-0 items-center justify-center rounded-field bg-primary/15 text-primary">
-            <Activity size={22} strokeWidth={2.4} />
-          </span>
+          <LogoMark size={48} />
           <div className="leading-tight">
             <h1 className="text-lg font-semibold text-base-content sm:text-xl">กรอกข้อมูลรายเดือน — หน่วย POCT</h1>
             <p className="text-xs text-base-content/55">
