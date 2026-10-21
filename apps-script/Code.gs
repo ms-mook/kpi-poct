@@ -1,5 +1,5 @@
 /**
- * KPI Dashboard — หน่วย POCT : หลังบ้าน (Google Apps Script)
+ * KPI Dashboard — POCT Center : หลังบ้าน (Google Apps Script)
  * ---------------------------------------------------------------------------
  * วางไฟล์นี้ใน Google Sheet ฐานข้อมูล: ส่วนขยาย → Apps Script (ดู SETUP.md ข้อ 3)
  *
@@ -20,6 +20,8 @@
  *   POST {action:"changePin", token, oldPin, newPin}
  *   POST {action:"saveUsage", token, ...} → บันทึกจำนวนการใช้งาน 1 เดือน × 1 ประเภทการตรวจ
  *   POST {action:"saveKpi",   token, ...} → บันทึกตัวชี้วัด 1 เดือน
+ *   POST {action:"saveConfig", token, table:"wards"|"kpiConfig", rows, renames?}
+ *                                         → แก้รายการหอผู้ป่วย / ตัวชี้วัดคุณภาพ (เพิ่ม ลบ แก้ไข เรียงลำดับ)
  */
 
 var TAB = {
@@ -77,6 +79,8 @@ function doPost(e) {
         return json_(saveUsage_(body, requireToken_(body.token)));
       case "saveKpi":
         return json_(saveKpi_(body, requireToken_(body.token)));
+      case "saveConfig":
+        return json_(saveConfig_(body, requireToken_(body.token)));
       case "ping":
         return json_({ ok: true, staffId: requireToken_(body.token) });
       default:
@@ -454,6 +458,103 @@ function saveKpi_(body, staffId) {
     writeRows_(sh, 6, old.length, next);
     appendLog_(staffId, "saveKpi", ym.year + "-" + ym.month, "", "เพิ่ม " + added + " · แก้ " + updated + " · ลบ " + removed);
     return { ok: true, added: added, updated: updated, removed: removed };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Config tables (หอผู้ป่วย / ตัวชี้วัดคุณภาพ) — แก้จากหน้า Admin
+// ---------------------------------------------------------------------------
+
+/** ข้อความจากหน้าเว็บที่จะเขียนลงชีต: กัน formula injection (= + - @ นำหน้า), อักขระควบคุม และความยาวเกิน */
+function cleanText_(v, label, max, required) {
+  var t = String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+  if (required && !t) throw new Error(label + "ต้องไม่ว่าง");
+  if (t.length > max) throw new Error(label + "ยาวเกิน " + max + " ตัวอักษร");
+  if (/^[=+\-@]/.test(t)) throw new Error(label + "ห้ามขึ้นต้นด้วย = + - @");
+  if (/[\u0000-\u001f]/.test(t)) throw new Error(label + "มีอักขระที่ไม่อนุญาต");
+  return t;
+}
+
+var KPI_KINDS = ["direct_percent", "ratio_pair", "ratio_auto", "count"];
+function boolCell_(v) { return v === false || String(v).toUpperCase() === "FALSE" || v === 0 || v === "0" ? "FALSE" : "TRUE"; }
+
+/**
+ * body: {table:"wards", rows:[[test, ward, order, active]], renames:[{test, from, to}]}
+ *       {table:"kpiConfig", rows:[[id, กลุ่ม, ชื่อ, ชื่อย่อ, เกณฑ์, ชนิด, ช่อง1, ช่อง2, เป้า, ทิศทาง, ทศนิยม, ลำดับ, ใช้งาน]]}
+ * rows คือรายการ "ทั้งหมด" หลังแก้ — เขียนทับแท็บในครั้งเดียว (ข้อมูลรายเดือนไม่ถูกลบ)
+ * renames: เปลี่ยนชื่อหอ → แก้ชื่อในแท็บข้อมูลการใช้งานตามด้วย เพื่อไม่ให้ข้อมูลเก่าหลุด
+ */
+function saveConfig_(body, staffId) {
+  if (!Array.isArray(body.rows)) throw new Error("ไม่มีข้อมูลที่จะบันทึก");
+  var table = body.table, rows = [], seen = {};
+
+  if (table === "wards") {
+    body.rows.forEach(function (r, i) {
+      var test = String(r[0] || "").trim();
+      if (TESTS.indexOf(test) < 0) throw new Error("ประเภทการตรวจไม่ถูกต้อง: " + test);
+      var ward = cleanText_(r[1], "ชื่อหอผู้ป่วย", 80, true);
+      if (ward.indexOf("|") >= 0) throw new Error("ชื่อหอผู้ป่วยห้ามมีเครื่องหมาย |");
+      var k = test + "|" + ward;
+      if (seen[k]) throw new Error('มีหอ "' + ward + '" ซ้ำใน ' + test);
+      seen[k] = true;
+      rows.push([test, ward, i + 1, boolCell_(r[3])]);
+    });
+  } else if (table === "kpiConfig") {
+    body.rows.forEach(function (r, i) {
+      var id = String(r[0] || "").trim();
+      if (!/^[A-Za-z0-9_]{2,40}$/.test(id)) throw new Error('รหัสตัวชี้วัด "' + id + '" ต้องเป็นอังกฤษ/ตัวเลข/_ ยาว 2-40 ตัว');
+      if (seen[id]) throw new Error('รหัสตัวชี้วัด "' + id + '" ซ้ำ');
+      seen[id] = true;
+      var kind = String(r[5] || "").trim();
+      if (KPI_KINDS.indexOf(kind) < 0) throw new Error('ชนิดของ "' + id + '" ไม่ถูกต้อง');
+      var nm = cleanText_(r[2], 'ชื่อตัวชี้วัด "' + id + '"', 250, true);
+      var grp = cleanText_(r[1] || id, "กลุ่ม", 60, false) || id;
+      var sn = cleanText_(r[3] || nm, "ชื่อย่อ", 80, false) || nm;
+      var cr = cleanText_(r[4], "คำอธิบายเกณฑ์", 250, false);
+      var l1 = cleanText_(r[6], "ชื่อช่องที่ 1", 100, false), l2 = cleanText_(r[7], "ชื่อช่องที่ 2", 100, false);
+      var target = r[8] === "" || r[8] == null ? "" : Number(r[8]);
+      if (target !== "" && !isFinite(target)) throw new Error('ค่าเป้าหมายของ "' + id + '" ต้องเป็นตัวเลข');
+      var dir = String(r[9] || "max").trim() === "min" ? "min" : "max";
+      var dec = Number(r[10]); if (!(dec >= 0 && dec <= 4)) dec = 2;
+      rows.push([id, grp, nm, sn, cr, kind, l1, l2, target, dir, dec, i + 1, boolCell_(r[12])]);
+    });
+  } else {
+    throw new Error("ไม่รู้จักตาราง: " + table);
+  }
+  if (rows.length === 0) throw new Error("ต้องมีอย่างน้อย 1 รายการ");
+  if (rows.length > 300) throw new Error("รายการมากเกินไป");
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var name = table === "wards" ? TAB.wards : TAB.kpiConfig;
+    var width = table === "wards" ? 4 : 13;
+    var sh = sheet_(name);
+    var oldCount = Math.max(sh.getLastRow() - 1, 0);
+
+    var renamed = 0;
+    if (table === "wards" && Array.isArray(body.renames) && body.renames.length) {
+      var map = {};
+      body.renames.forEach(function (x) {
+        var t = String(x.test || ""), a = String(x.from || "").trim(), b = String(x.to || "").trim();
+        if (a && b && a !== b && seen[t + "|" + b]) map[t + "|" + a] = b;
+      });
+      var us = sheet_(TAB.usage), ulast = us.getLastRow();
+      if (ulast >= 2 && Object.keys(map).length) {
+        var rng = us.getRange(2, 4, ulast - 1, 2), vals = rng.getValues();
+        vals.forEach(function (v) {
+          var to = map[String(v[0]).trim() + "|" + String(v[1]).trim()];
+          if (to) { v[1] = to; renamed++; }
+        });
+        rng.setValues(vals);
+      }
+    }
+    writeRows_(sh, width, oldCount, rows);
+    appendLog_(staffId, "saveConfig", "", table, rows.length + " รายการ" + (renamed ? " · แก้ชื่อในข้อมูลเก่า " + renamed + " แถว" : ""));
+    return { ok: true, count: rows.length, renamed: renamed };
   } finally {
     lock.releaseLock();
   }

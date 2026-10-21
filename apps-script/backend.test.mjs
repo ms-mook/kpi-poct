@@ -72,6 +72,31 @@ sheets.get("ผู้ใช้งาน").data[1][4] = true;
 for (let i = 0; i < 6; i++) call("POST", { body: { action: "login", staffId: "DEV", pin: "999999" } });
 t("locked out after 5 fails, even with right PIN", call("POST", { body: { action: "login", staffId: "DEV", pin: "135790" } }).ok === false);
 
+
+// ---- saveConfig (wards / KPI config) ----
+const wardsNow = call("GET", { params: { action: "read" } }).tabs["หอผู้ป่วย"];
+const wardRows = wardsNow.map(r => [r[0], r[1], r[2], r[3]]);
+t("saveConfig without token rejected", call("POST", { body: { action: "saveConfig", table: "wards", rows: wardRows } }).auth === true);
+r = call("POST", { body: { action: "saveConfig", token, table: "wards", rows: [...wardRows, ["Glucose", "หอผู้ป่วย ใหม่ 9ก", 99, true]] } });
+t("add ward", r.ok && r.count === wardRows.length + 1, JSON.stringify(r));
+t("duplicate ward rejected", call("POST", { body: { action: "saveConfig", token, table: "wards", rows: [...wardRows, wardRows[0]] } }).ok === false);
+t("bad test rejected", call("POST", { body: { action: "saveConfig", token, table: "wards", rows: [["X", "a", 1, true]] } }).ok === false);
+const wardBefore = call("GET", { params: { action: "read" } }).tabs["ข้อมูลการใช้งาน"].filter(x => x[4] === "หอผู้ป่วย 2ก").length;
+const renamedRows = wardRows.map(x => x[1] === "หอผู้ป่วย 2ก" && x[0] === "Glucose" ? ["Glucose", "หอผู้ป่วย 2ก-ใหม่", x[2], x[3]] : x);
+r = call("POST", { body: { action: "saveConfig", token, table: "wards", rows: renamedRows, renames: [{ test: "Glucose", from: "หอผู้ป่วย 2ก", to: "หอผู้ป่วย 2ก-ใหม่" }] } });
+const after = call("GET", { params: { action: "read" } }).tabs["ข้อมูลการใช้งาน"];
+t("rename ward migrates usage rows", r.ok && r.renamed === wardBefore && after.filter(x => x[4] === "หอผู้ป่วย 2ก-ใหม่").length === wardBefore && wardBefore > 0, JSON.stringify(r));
+const kc = call("GET", { params: { action: "read" } }).tabs["ตัวชี้วัดคุณภาพ (ตั้งค่า)"];
+t("kpiConfig bad id rejected", call("POST", { body: { action: "saveConfig", token, table: "kpiConfig", rows: [["ก ข", "g", "n", "n", "", "count", "", "", "", "max", 0, 1, true]] } }).ok === false);
+t("kpiConfig bad kind rejected", call("POST", { body: { action: "saveConfig", token, table: "kpiConfig", rows: [["abc", "g", "n", "n", "", "zzz", "", "", "", "max", 0, 1, true]] } }).ok === false);
+r = call("POST", { body: { action: "saveConfig", token, table: "kpiConfig", rows: [...kc, ["new_kpi", "newg", "ตัวชี้วัดใหม่", "ใหม่", "เกณฑ์", "direct_percent", "ร้อยละ", "", 80, "max", 1, 99, true]] } });
+t("add kpi", r.ok && r.count === kc.length + 1, JSON.stringify(r));
+t("formula-like ward name rejected", call("POST", { body: { action: "saveConfig", token, table: "wards", rows: [["Glucose", "=HYPERLINK(\"http://x\")", 1, true]] } }).ok === false);
+t("ward name with | rejected", call("POST", { body: { action: "saveConfig", token, table: "wards", rows: [["Glucose", "a|b", 1, true]] } }).ok === false);
+t("formula-like kpi text rejected", call("POST", { body: { action: "saveConfig", token, table: "kpiConfig", rows: [["abc", "g", "n", "n", "=1+1", "count", "", "", "", "max", 0, 1, true]] } }).ok === false);
+r = call("POST", { body: { action: "saveKpi", token, year: 2569, month: 10, entries: [{ indicator: "new_kpi", field: "new_kpi_pct", value: 85 }] } });
+t("new kpi accepts entries", r.ok && r.added === 1, JSON.stringify(r));
+
 const log = sheets.get("บันทึกการแก้ไข").data;
 t("audit log records staff ID", log.some(x => x[1] === "DEV" && x[2] === "saveUsage"));
 console.log(`\n${pass} passed, ${fail} failed`);

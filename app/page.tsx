@@ -114,7 +114,7 @@ export default function DashboardPage() {
   }, [data.usage, data.wards]);
 
   return (
-    <div className="w-full px-4 py-5 sm:px-6 lg:px-10 2xl:px-14">
+    <main className="w-full px-4 py-5 sm:px-6 lg:px-10 2xl:px-14">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <LogoMark size={48} />
@@ -275,6 +275,6 @@ export default function DashboardPage() {
       <footer className="mt-10 border-t border-base-content/6 pt-4 text-center text-[11px] text-base-content/40">
         ข้อมูลจาก Google Sheet · ปีงบประมาณนับ ต.ค.–ก.ย.
       </footer>
-    </div>
+    </main>
   );
 }

@@ -100,6 +100,14 @@ export async function saveKpi(input: {
   return post<Reply & SaveResult>({ action: "saveKpi", token: token(), ...input });
 }
 
+/** Replace a config table with the full edited list (see saveConfig_ in Code.gs). */
+export async function saveConfig(input: {
+  table: "wards" | "kpiConfig"; rows: (string | number | boolean | null)[][];
+  renames?: { test: string; from: string; to: string }[];
+}): Promise<{ count: number; renamed: number }> {
+  return post<Reply & { count: number; renamed: number }>({ action: "saveConfig", token: token(), ...input });
+}
+
 export async function changePin(oldPin: string, newPin: string): Promise<void> {
   await post({ action: "changePin", token: token(), oldPin, newPin });
 }

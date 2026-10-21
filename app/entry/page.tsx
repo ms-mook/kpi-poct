@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { LogoMark } from "@/components/Logo";
-import { ArrowLeft, KeyRound, LayoutDashboard, Loader2, LogOut, ShieldCheck, Syringe, Table2 } from "lucide-react";
+import { ArrowLeft, KeyRound, LayoutDashboard, Loader2, LogOut, ShieldCheck, Settings, Syringe, Table2 } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { StatusBanner } from "@/components/StatusBanner";
 import { LoginForm } from "@/components/entry/LoginForm";
 import { UsageEntryForm } from "@/components/entry/UsageEntryForm";
 import { KpiEntryForm } from "@/components/entry/KpiEntryForm";
+import { ConfigManager } from "@/components/entry/ConfigManager";
 import { DataTables } from "@/components/entry/DataTables";
 import { ChangePinDialog } from "@/components/entry/ChangePinDialog";
 import { APPS_SCRIPT_URL, getSession, login, logout, type Session } from "@/lib/backend";
@@ -18,6 +19,7 @@ const TABS = [
   { id: "usage", label: "จำนวนการใช้งาน", icon: Syringe },
   { id: "kpi", label: "ตัวชี้วัดคุณภาพ", icon: ShieldCheck },
   { id: "tables", label: "ตารางข้อมูล · Excel", icon: Table2 },
+  { id: "config", label: "ตั้งค่า หอ/ตัวชี้วัด", icon: Settings },
 ] as const;
 
 export default function EntryPage() {
@@ -117,6 +119,8 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
         <UsageEntryForm data={data} onSaved={reload} onAuthLost={onAuthLost} />
       ) : tab === "kpi" ? (
         <KpiEntryForm data={data} onSaved={reload} onAuthLost={onAuthLost} />
+      ) : tab === "config" ? (
+        <ConfigManager data={data} onSaved={reload} />
       ) : (
         <DataTables data={data} />
       )}
