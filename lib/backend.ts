@@ -103,7 +103,7 @@ export async function saveKpi(input: {
 /** Replace a config table with the full edited list (see saveConfig_ in Code.gs). */
 export async function saveConfig(input: {
   table: "wards" | "kpiConfig" | "devices"; rows: (string | number | boolean | null)[][];
-  renames?: { test: string; from: string; to: string }[];
+  renames?: { test: string; from: string; to: string }[]; baseVersion?: string;
 }): Promise<{ count: number; renamed: number }> {
   return post<Reply & { count: number; renamed: number }>({ action: "saveConfig", token: token(), ...input });
 }

@@ -62,7 +62,9 @@ function doGet(e) {
   try {
     var action = (e && e.parameter && e.parameter.action) || "read";
     if (action !== "read") return json_({ ok: false, error: "ไม่รู้จักคำสั่ง " + action });
-    return json_({ ok: true, tabs: readAllTabs_() });
+    var tabs = readAllTabs_();
+    // เวอร์ชันของตารางที่แก้ได้จากหน้า Admin — ใช้กันการบันทึกทับกัน (ดู saveConfig_)
+    return json_({ ok: true, tabs: tabs, versions: { wards: ver_(tabs[TAB.wards]), kpiConfig: ver_(tabs[TAB.kpiConfig]), devices: ver_(tabs[TAB.fleet]) } });
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message ? err.message : err) });
   }
@@ -354,16 +356,19 @@ function saveUsage_(body, staffId) {
   var ym = checkYearMonth_(body.year, body.month);
   if (TESTS.indexOf(body.test) < 0) throw new Error("ประเภทการตรวจไม่ถูกต้อง");
   if (!Array.isArray(body.entries) || body.entries.length === 0) throw new Error("ไม่มีข้อมูลที่จะบันทึก");
+  if (body.entries.length > 500) throw new Error("รายการมากเกินไป");
 
-  var knownWards = {};
+  var knownWards = Object.create(null);
   rows_(TAB.wards).forEach(function (r) { if (r[0] === body.test) knownWards[String(r[1]).trim()] = true; });
 
-  var wanted = {};
+  var wanted = Object.create(null);
   body.entries.forEach(function (en) {
+    if (!en || typeof en !== "object") throw new Error("รูปแบบข้อมูลไม่ถูกต้อง");
     var ward = String(en.ward || "").trim();
     if (!knownWards[ward]) throw new Error('ไม่พบหอ "' + ward + '" ในแท็บหอผู้ป่วย (' + body.test + ")");
     var c = en.count;
     if (c === null || c === undefined || c === "") { wanted[ward] = null; return; }
+    if (!(typeof c === "number" || (typeof c === "string" && /^\d{1,7}$/.test(c.trim())))) throw new Error('จำนวนของ "' + ward + '" ต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป');
     c = Number(c);
     if (!(c >= 0 && Math.floor(c) === c && c < 1000000)) throw new Error('จำนวนของ "' + ward + '" ต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป');
     wanted[ward] = c;
@@ -413,12 +418,14 @@ function cellValue_(v) { return isND_(v) ? "ND" : Number(v); }
 function saveKpi_(body, staffId) {
   var ym = checkYearMonth_(body.year, body.month);
   if (!Array.isArray(body.entries) || body.entries.length === 0) throw new Error("ไม่มีข้อมูลที่จะบันทึก");
+  if (body.entries.length > 500) throw new Error("รายการมากเกินไป");
 
-  var kinds = {};
+  var kinds = Object.create(null);
   rows_(TAB.kpiConfig).forEach(function (r) { if (r[0]) kinds[String(r[0]).trim()] = String(r[5]).trim(); });
 
-  var wanted = {};
+  var wanted = Object.create(null);
   body.entries.forEach(function (en) {
+    if (!en || typeof en !== "object") throw new Error("รูปแบบข้อมูลไม่ถูกต้อง");
     var id = String(en.indicator || "").trim();
     var field = String(en.field || "").trim();
     var kind = kinds[id];
@@ -481,6 +488,13 @@ function cleanText_(v, label, max, required) {
   return t;
 }
 
+/** checksum ของเนื้อหาตาราง (ไม่ใช่เรื่องความลับ แค่ไว้เทียบว่ามีคนแก้ระหว่างนั้นหรือไม่) */
+function ver_(rows) {
+  var str = JSON.stringify(rows || []), h = 5381;
+  for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return String(h) + ":" + str.length;
+}
+
 var KPI_KINDS = ["direct_percent", "ratio_pair", "ratio_auto", "count"];
 function boolCell_(v) { return v === false || String(v).toUpperCase() === "FALSE" || v === 0 || v === "0" ? "FALSE" : "TRUE"; }
 
@@ -492,7 +506,8 @@ function boolCell_(v) { return v === false || String(v).toUpperCase() === "FALSE
  */
 function saveConfig_(body, staffId) {
   if (!Array.isArray(body.rows)) throw new Error("ไม่มีข้อมูลที่จะบันทึก");
-  var table = body.table, rows = [], seen = {};
+  body.rows.forEach(function (r) { if (!Array.isArray(r)) throw new Error("รูปแบบข้อมูลไม่ถูกต้อง"); });
+  var table = body.table, rows = [], seen = Object.create(null);
 
   if (table === "wards") {
     body.rows.forEach(function (r, i) {
@@ -526,9 +541,9 @@ function saveConfig_(body, staffId) {
     });
   } else if (table === "devices") {
     // [test, sn, ward, fromYear, fromMonth, toYear, toMonth, note] — 1 แถว = เครื่องนี้อยู่หอนี้ช่วงนี้
-    var known = {};
+    var known = Object.create(null);
     rows_(TAB.wards).forEach(function (w) { known[String(w[0]).trim() + "|" + String(w[1]).trim()] = true; });
-    var spans = {};
+    var spans = Object.create(null);
     body.rows.forEach(function (r) {
       var test = String(r[0] || "").trim();
       if (TESTS.indexOf(test) < 0) throw new Error("ประเภทการตรวจไม่ถูกต้อง: " + test);
@@ -552,7 +567,7 @@ function saveConfig_(body, staffId) {
     throw new Error("ไม่รู้จักตาราง: " + table);
   }
   if (rows.length === 0 && table !== "devices") throw new Error("ต้องมีอย่างน้อย 1 รายการ");
-  if (rows.length > 300) throw new Error("รายการมากเกินไป");
+  if (rows.length > (table === "devices" ? 2000 : 300)) throw new Error("รายการมากเกินไป");
 
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -567,10 +582,13 @@ function saveConfig_(body, staffId) {
       sh = sheet_(name);
     }
     var oldCount = Math.max(sh.getLastRow() - 1, 0);
+    if (body.baseVersion != null && String(body.baseVersion) !== ver_(oldCount ? rows_(name) : [])) {
+      throw new Error("ข้อมูลในชีตถูกแก้ไขโดยผู้อื่นหลังจากโหลดหน้านี้ — กรุณากดโหลดข้อมูลใหม่ แล้วแก้ซ้ำอีกครั้ง (ยังไม่มีอะไรถูกบันทึก)");
+    }
 
     var renamed = 0;
     if (table === "wards" && Array.isArray(body.renames) && body.renames.length) {
-      var map = {};
+      var map = Object.create(null);
       body.renames.forEach(function (x) {
         var t = String(x.test || ""), a = String(x.from || "").trim(), b = String(x.to || "").trim();
         if (a && b && a !== b && seen[t + "|" + b]) map[t + "|" + a] = b;
@@ -583,6 +601,19 @@ function saveConfig_(body, staffId) {
           if (to) { v[1] = to; renamed++; }
         });
         rng.setValues(vals);
+      }
+      // ประวัติเครื่อง (และแท็บเครื่อง Glucose เดิม) อ้างชื่อหอ — เปลี่ยนตามด้วย
+      var fs_ = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB.fleet);
+      if (fs_ && fs_.getLastRow() >= 2) {
+        var fr = fs_.getRange(2, 1, fs_.getLastRow() - 1, 3), fv = fr.getValues();
+        fv.forEach(function (v) { var to = map[String(v[0]).trim() + "|" + String(v[2]).trim()]; if (to) { v[2] = to; renamed++; } });
+        fr.setValues(fv);
+      }
+      var ls_ = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TAB.devices);
+      if (ls_ && ls_.getLastRow() >= 2) {
+        var lr = ls_.getRange(2, 1, ls_.getLastRow() - 1, 1), lv = lr.getValues();
+        lv.forEach(function (v) { var to = map["Glucose|" + String(v[0]).trim()]; if (to) { v[0] = to; renamed++; } });
+        lr.setValues(lv);
       }
     }
     writeRows_(sh, width, oldCount, rows);

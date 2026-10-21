@@ -70,6 +70,8 @@ export type Dataset = {
   usage: UsageRow[];
   wards: WardRow[];
   devices: DeviceRow[];
+  /** Content versions of the admin-editable tables (live data only) — sent back on save to detect concurrent edits. */
+  versions?: { wards: string; kpiConfig: string; devices: string };
   kpi: KpiRow[];
   kpiConfig: KpiConfig[];
   source: "live" | "snapshot";
@@ -212,7 +214,7 @@ async function fetchTab(tab: string): Promise<Raw> {
 async function loadViaAppsScript(): Promise<Dataset> {
   const res = await fetch(`${APPS_SCRIPT_URL}?action=read&_=${Date.now()}`, { cache: "no-store", redirect: "follow" });
   if (!res.ok) throw new Error(`อ่านข้อมูลจากหลังบ้านไม่ได้ (HTTP ${res.status})`);
-  let body: { ok: boolean; error?: string; tabs?: Record<string, Raw> };
+  let body: { ok: boolean; error?: string; tabs?: Record<string, Raw>; versions?: Dataset["versions"] };
   try {
     body = await res.json();
   } catch {
@@ -221,6 +223,7 @@ async function loadViaAppsScript(): Promise<Dataset> {
   if (!body.ok || !body.tabs) throw new Error(body.error ?? "อ่านข้อมูลจากหลังบ้านไม่ได้");
   const tabs = body.tabs;
   const ds = build((tab) => tabs[tab] ?? [], "live");
+  ds.versions = body.versions;
   if (ds.usage.length === 0) throw new Error(`แท็บ "${TAB.usage}" ไม่มีข้อมูล`);
   return ds;
 }

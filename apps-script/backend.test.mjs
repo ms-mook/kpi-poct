@@ -85,7 +85,7 @@ const wardBefore = call("GET", { params: { action: "read" } }).tabs["ข้อ�
 const renamedRows = wardRows.map(x => x[1] === "หอผู้ป่วย 2ก" && x[0] === "Glucose" ? ["Glucose", "หอผู้ป่วย 2ก-ใหม่", x[2], x[3]] : x);
 r = call("POST", { body: { action: "saveConfig", token, table: "wards", rows: renamedRows, renames: [{ test: "Glucose", from: "หอผู้ป่วย 2ก", to: "หอผู้ป่วย 2ก-ใหม่" }] } });
 const after = call("GET", { params: { action: "read" } }).tabs["ข้อมูลการใช้งาน"];
-t("rename ward migrates usage rows", r.ok && r.renamed === wardBefore && after.filter(x => x[4] === "หอผู้ป่วย 2ก-ใหม่").length === wardBefore && wardBefore > 0, JSON.stringify(r));
+t("rename ward migrates usage rows", r.ok && r.renamed >= wardBefore && after.filter(x => x[4] === "หอผู้ป่วย 2ก-ใหม่").length === wardBefore && wardBefore > 0, JSON.stringify(r));
 const kc = call("GET", { params: { action: "read" } }).tabs["ตัวชี้วัดคุณภาพ (ตั้งค่า)"];
 t("kpiConfig bad id rejected", call("POST", { body: { action: "saveConfig", token, table: "kpiConfig", rows: [["ก ข", "g", "n", "n", "", "count", "", "", "", "max", 0, 1, true]] } }).ok === false);
 t("kpiConfig bad kind rejected", call("POST", { body: { action: "saveConfig", token, table: "kpiConfig", rows: [["abc", "g", "n", "n", "", "zzz", "", "", "", "max", 0, 1, true]] } }).ok === false);
@@ -109,6 +109,30 @@ t("devices: unknown ward rejected", dv([["Glucose", "UU1", "หอปลอม",
 t("devices: formula SN rejected", dv([["Glucose", "=1+1", W, 2568, 10, "", "", ""]]).ok === false);
 t("devices: same SN in other test is independent", dv([["Glucose", "X1", W, 2568, 10, "", "", ""], ["Blood gas", "X1", "RESUS", 2568, 10, "", "", ""]]).ok);
 t("devices: no token rejected", call("POST", { body: { action: "saveConfig", table: "devices", rows: [] } }).auth === true);
+
+// ---- rename migrates devices; optimistic version check ----
+const rd = () => call("GET", { query: { action: "read" } });
+const wardsTab = rd().tabs["หอผู้ป่วย"].map(x => [x[0], x[1], x[2], x[3]]);
+t("read exposes versions", rd().versions && typeof rd().versions.wards === "string");
+dv([["Glucose", "RN1", W2, 2568, 4, "", "", ""]]);
+const w2new = W2 + "-ใหม่";
+r = call("POST", { body: { action: "saveConfig", token, table: "wards", baseVersion: rd().versions.wards, rows: wardsTab.map(x => x[0] === "Glucose" && x[1] === W2 ? ["Glucose", w2new, x[2], x[3]] : x), renames: [{ test: "Glucose", from: W2, to: w2new }] } });
+t("rename accepted with current version", r.ok, JSON.stringify(r));
+t("rename also moved device history", rd().tabs["เครื่อง POCT (ประวัติ)"].some(x => x[1] === "RN1" && x[2] === w2new) && !rd().tabs["เครื่อง POCT (ประวัติ)"].some(x => x[2] === W2));
+const staleVer = rd().versions.wards;
+call("POST", { body: { action: "saveConfig", token, table: "wards", rows: rd().tabs["หอผู้ป่วย"].map(x => [x[0], x[1], x[2], x[3]]).concat([["Glucose", "หอใหม่ 77", 999, true]]) } });
+r = call("POST", { body: { action: "saveConfig", token, table: "wards", baseVersion: staleVer, rows: wardsTab } });
+t("stale version rejected, nothing written", r.ok === false && /ถูกแก้ไขโดยผู้อื่น/.test(r.error) && rd().tabs["หอผู้ป่วย"].some(x => x[1] === "หอใหม่ 77"), JSON.stringify(r));
+
+// ---- hostile input ----
+const uTry = (c) => call("POST", { body: { action: "saveUsage", token, year: 2569, month: 10, test: "Glucose", entries: [{ ward: "หอผู้ป่วย 2ก-ใหม่", count: c }] } });
+t("usage count true rejected", uTry(true).ok === false);
+t("usage count [] rejected", uTry([]).ok === false);
+t("usage count '1e3' rejected", uTry("1e3").ok === false);
+t("usage count '12' (digits string) ok", uTry("12").ok === true);
+t("usage 5000 entries rejected", call("POST", { body: { action: "saveUsage", token, year: 2569, month: 10, test: "Glucose", entries: Array(5000).fill({ ward: "หอผู้ป่วย 2ก-ใหม่", count: 1 }) } }).ok === false);
+t("kpi __proto__ indicator rejected cleanly", /ไม่พบตัวชี้วัด/.test(call("POST", { body: { action: "saveKpi", token, year: 2569, month: 10, entries: [{ indicator: "__proto__", field: "__proto___pct", value: 5 }] } }).error));
+t("config null row rejected cleanly", /รูปแบบข้อมูล/.test(call("POST", { body: { action: "saveConfig", token, table: "wards", rows: [null] } }).error));
 
 const log = sheets.get("บันทึกการแก้ไข").data;
 t("audit log records staff ID", log.some(x => x[1] === "DEV" && x[2] === "saveUsage"));

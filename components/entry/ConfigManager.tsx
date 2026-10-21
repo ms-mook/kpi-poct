@@ -71,6 +71,7 @@ function WardsEditor({ data, onSaved, notice, setNotice }: Props) {
     for (const r of data.usage) s.add(`${r.test}|${r.ward}`);
     return s;
   }, [data.usage]);
+  const withDevices = useMemo(() => new Set(data.devices.map((d) => `${d.test}|${d.ward}`)), [data.devices]);
   const dirty = JSON.stringify(rows) !== JSON.stringify(initial);
   const list = rows.filter((r) => r.test === test);
   const dupes = new Set(list.filter((r, i) => list.findIndex((x) => x.name.trim() === r.name.trim()) !== i).map((r) => r.name.trim()));
@@ -100,7 +101,7 @@ function WardsEditor({ data, onSaved, notice, setNotice }: Props) {
     try {
       const ordered = [...TESTS.flatMap((t) => rows.filter((r) => r.test === t))];
       const renames = ordered.filter((r) => r.orig && r.orig !== r.name.trim()).map((r) => ({ test: r.test, from: r.orig!, to: r.name.trim() }));
-      const res = await saveConfig({ table: "wards", rows: ordered.map((r, i) => [r.test, r.name.trim(), i + 1, r.active]), renames });
+      const res = await saveConfig({ table: "wards", baseVersion: data.versions?.wards, rows: ordered.map((r, i) => [r.test, r.name.trim(), i + 1, r.active]), renames });
       setNotice(`บันทึกแล้ว ${res.count} รายการ${res.renamed ? ` · แก้ชื่อในข้อมูลเก่า ${res.renamed} แถว` : ""}`);
       await onSaved();
     } catch (e) {
@@ -128,7 +129,7 @@ function WardsEditor({ data, onSaved, notice, setNotice }: Props) {
 
       <ul className="divide-y divide-base-content/8 rounded-field border border-base-content/8">
         {list.map((r, i) => {
-          const hasData = r.orig != null && used.has(`${r.test}|${r.orig}`);
+          const hasData = r.orig != null && (used.has(`${r.test}|${r.orig}`) || withDevices.has(`${r.test}|${r.orig}`));
           return (
             <li key={r.key} className="flex flex-wrap items-center gap-2 px-3 py-2">
               <span className="w-6 text-xs text-base-content/40">{i + 1}</span>
@@ -143,7 +144,7 @@ function WardsEditor({ data, onSaved, notice, setNotice }: Props) {
               <button className="btn btn-ghost btn-xs btn-square" disabled={i === 0} onClick={() => move(r.key, -1)} aria-label="เลื่อนขึ้น"><ArrowUp size={14} /></button>
               <button className="btn btn-ghost btn-xs btn-square" disabled={i === list.length - 1} onClick={() => move(r.key, 1)} aria-label="เลื่อนลง"><ArrowDown size={14} /></button>
               <button className="btn btn-ghost btn-xs btn-square text-error" disabled={hasData} aria-label={`ลบ ${r.name}`}
-                title={hasData ? "มีข้อมูลการใช้งานแล้ว — ลบไม่ได้ ให้ปิดใช้งานแทน" : "ลบหอนี้"}
+                title={hasData ? "มีข้อมูลการใช้งานหรือเครื่อง (SN) ผูกอยู่ — ลบไม่ได้ ให้ปิดใช้งานแทน" : "ลบหอนี้"}
                 onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}><Trash2 size={14} /></button>
             </li>
           );
@@ -218,7 +219,7 @@ function KpiEditor({ data, onSaved, notice, setNotice }: Props) {
     setBusy(true); setError(null); setNotice(null);
     try {
       const res = await saveConfig({
-        table: "kpiConfig",
+        table: "kpiConfig", baseVersion: data.versions?.kpiConfig,
         rows: rows.map((r, i) => [r.id, r.group.trim() || r.id, r.name.trim(), r.shortName.trim() || r.name.trim(), r.criteria.trim(), r.kind,
           r.field1Label.trim(), r.kind === "ratio_pair" || r.kind === "count" ? r.field2Label.trim() : "",
           r.target.trim() === "" ? "" : Number(r.target), r.direction, Number(r.decimals) || 0, i + 1, r.active]),
@@ -377,7 +378,7 @@ function DevicesEditor({ data, onSaved, notice, setNotice }: Props) {
     setBusy(true); setError(null); setNotice(null);
     try {
       const res = await saveConfig({
-        table: "devices",
+        table: "devices", baseVersion: data.versions?.devices,
         rows: rows.map((r) => [r.test, r.sn.trim(), r.ward, Number(r.fy), Number(r.fm), r.ty === "" ? "" : Number(r.ty), r.tm === "" ? "" : Number(r.tm), r.note.trim()]),
       });
       setNotice(`บันทึกแล้ว ${res.count} รายการ`);
