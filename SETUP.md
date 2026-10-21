@@ -1,4 +1,4 @@
-# ขั้นตอนตั้งค่า KPI Dashboard — หน่วย POCT
+# ขั้นตอนตั้งค่า KPI Dashboard — POCT Center
 
 ```
 GitHub Pages (หน้าเว็บ)  ──อ่าน/บันทึก──▶  Google Apps Script (หลังบ้าน)  ──▶  Google Sheet (ฐานข้อมูล)

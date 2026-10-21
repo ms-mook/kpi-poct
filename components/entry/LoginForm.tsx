@@ -46,7 +46,7 @@ export function LoginForm() {
         <aside className="hidden flex-col justify-between gap-8 bg-primary/10 p-8 md:flex">
           <div>
             <LogoFull width={150} />
-            <h2 className="mt-5 text-xl font-semibold text-base-content">KPI Dashboard — หน่วย POCT</h2>
+            <h2 className="mt-5 text-xl font-semibold text-base-content">KPI Dashboard — POCT Center</h2>
             <p className="mt-1 text-sm text-base-content/65">หน่วยเจาะเลือดเก็บสิ่งส่งตรวจและ POCT · รพ.ศรีนครินทร์</p>
           </div>
           <ul className="space-y-3 text-sm text-base-content/75">
@@ -59,7 +59,7 @@ export function LoginForm() {
         <form onSubmit={handleSubmit} className="p-6 sm:p-9">
           <div className="mb-6 flex items-center gap-3 md:hidden">
             <LogoMark size={48} />
-            <p className="text-xs leading-snug text-base-content/65">KPI Dashboard — หน่วย POCT<br />รพ.ศรีนครินทร์</p>
+            <p className="text-xs leading-snug text-base-content/65">KPI Dashboard — POCT Center<br />รพ.ศรีนครินทร์</p>
           </div>
           <h1 className="text-xl font-semibold text-base-content">เข้าสู่ระบบหลังบ้าน</h1>
           <p className="mb-6 mt-1 text-sm text-base-content/65">ใส่ Staff ID และ PIN เพื่อกรอกข้อมูลรายเดือน</p>

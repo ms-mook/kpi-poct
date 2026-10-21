@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "KPI Dashboard - หน่วย POCT",
+  title: "KPI Dashboard - POCT Center",
   description: "สถิติการใช้งานเครื่อง POCT (Glucose, Blood gas) รายหอผู้ป่วย และตัวชี้วัดคุณภาพ รพ.ศรีนครินทร์",
 };
 

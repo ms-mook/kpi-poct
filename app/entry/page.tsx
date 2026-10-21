@@ -83,7 +83,7 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
         <div className="flex items-center gap-3">
           <LogoMark size={48} />
           <div className="leading-tight">
-            <h1 className="text-lg font-semibold text-base-content sm:text-xl">กรอกข้อมูลรายเดือน — หน่วย POCT</h1>
+            <h1 className="text-lg font-semibold text-base-content sm:text-xl">กรอกข้อมูลรายเดือน — POCT Center</h1>
             <p className="text-xs text-base-content/55">
               เข้าสู่ระบบ: <span className="font-medium text-base-content/80">{session.staffId}</span>
               {session.name && ` · ${session.name}`}

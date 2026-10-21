@@ -86,7 +86,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <LogoMark size={48} />
           <div className="leading-tight">
-            <h1 className="text-lg font-semibold text-base-content sm:text-xl">KPI Dashboard — หน่วย POCT</h1>
+            <h1 className="text-lg font-semibold text-base-content sm:text-xl">KPI Dashboard — POCT Center</h1>
             <p className="text-xs text-base-content/55">
               หน่วยเจาะเลือดเก็บสิ่งส่งตรวจและ POCT · รพ.ศรีนครินทร์
             </p>
