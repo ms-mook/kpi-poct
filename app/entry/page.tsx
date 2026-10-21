@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { LogoMark } from "@/components/Logo";
-import { ArrowLeft, KeyRound, LayoutDashboard, Loader2, LogOut, ShieldCheck, Activity, Settings, Syringe, Table2 } from "lucide-react";
+import { ArrowLeft, KeyRound, LayoutDashboard, Loader2, LogOut, ShieldCheck, Activity, FileText, Settings, Syringe, Table2 } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { StatusBanner } from "@/components/StatusBanner";
 import { LoginForm } from "@/components/entry/LoginForm";
 import { UsageEntryForm } from "@/components/entry/UsageEntryForm";
 import { KpiEntryForm } from "@/components/entry/KpiEntryForm";
 import { ConfigManager } from "@/components/entry/ConfigManager";
+import { ReportBuilder } from "@/components/entry/ReportBuilder";
 import { FleetMonitor } from "@/components/entry/FleetMonitor";
 import { DataTables } from "@/components/entry/DataTables";
 import { ChangePinDialog } from "@/components/entry/ChangePinDialog";
@@ -20,6 +21,7 @@ const TABS = [
   { id: "usage", label: "จำนวนการใช้งาน", icon: Syringe },
   { id: "kpi", label: "ตัวชี้วัดคุณภาพ", icon: ShieldCheck },
   { id: "tables", label: "ตารางข้อมูล · Excel", icon: Table2 },
+  { id: "report", label: "รายงาน PDF", icon: FileText },
   { id: "fleet", label: "monitor เครื่อง", icon: Activity },
   { id: "config", label: "ตั้งค่า หอ/ตัวชี้วัด", icon: Settings },
 ] as const;
@@ -84,8 +86,8 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
   const onAuthLost = useCallback(() => {}, []);
 
   return (
-    <main className="w-full px-4 py-5 pb-24 sm:px-6 lg:px-10 2xl:px-14">
-      <header className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-base-content/8 pb-4">
+    <main className="w-full px-4 py-5 pb-24 sm:px-6 lg:px-10 2xl:px-14 print:p-0">
+      <header className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 print:hidden border-b border-base-content/8 pb-4">
         <div className="flex items-center gap-3">
           <LogoMark size={48} />
           <div className="leading-tight">
@@ -105,7 +107,7 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
       </header>
 
 
-      <div role="tablist" className="tabs tabs-box glass-panel mb-5 w-full sm:w-fit">
+      <div role="tablist" className="tabs tabs-box glass-panel mb-5 w-full sm:w-fit print:hidden">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button key={id} role="tab" onClick={() => setTab(id)} className={`tab flex-1 gap-2 sm:flex-none ${tab === id ? "tab-active" : ""}`}>
             <Icon size={15} /> {label}
@@ -121,6 +123,8 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
         <UsageEntryForm data={data} onSaved={reload} onAuthLost={onAuthLost} />
       ) : tab === "kpi" ? (
         <KpiEntryForm data={data} onSaved={reload} onAuthLost={onAuthLost} />
+      ) : tab === "report" ? (
+        <ReportBuilder data={data} />
       ) : tab === "fleet" ? (
         <FleetMonitor data={data} />
       ) : tab === "config" ? (

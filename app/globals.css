@@ -432,3 +432,16 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ring-in { animation: none; }
 }
+
+
+/* Printable report: A4, always light, keep fills when saving as PDF. */
+@page { size: A4; margin: 12mm; }
+.report-sheet { color-scheme: light; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+@media print {
+  html, body { background: #fff !important; background-image: none !important; }
+  .ambient-bg { display: none !important; }
+  .report-sheet { margin: 0 !important; }
+  .report-sheet h2 { break-after: avoid; }
+  .report-sheet table { break-inside: auto; }
+  .report-sheet thead { display: table-header-group; }
+}
