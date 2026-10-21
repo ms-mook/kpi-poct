@@ -10,11 +10,12 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { BentoCard } from "./BentoCard";
+import { StatusBanner } from "./StatusBanner";
 import { CountUp } from "./CountUp";
 import { fiscalYearMonths, MONTH_ABBR_TH, MONTH_NAMES_TH, type TestType } from "@/lib/constants";
 import type { Dataset, UsageRow } from "@/lib/data";
 import {
-  daysInMonth, detectAnomalies, groupUsageByWard, latestMonth, monthlyTotals, monthTotal,
+  daysInMonth, detectAnomalies, groupUsageByWard, latestCompleteMonth, latestMonth, monthCompleteness, monthlyTotals, monthTotal,
   wardGroupName, wardMonthly, wardTotalsForMonth, wardTotalsWithChange, yearlyTotals, type UsageAnomaly,
 } from "@/lib/aggregate";
 import { SERIES, useChartColors } from "@/lib/chart-colors";
@@ -124,7 +125,15 @@ export function UsageSection({ data, test, fy, grouped, monthIdx }: {
   const usage: UsageRow[] = useMemo(() => (grouped ? groupUsageByWard(data.usage) : data.usage), [data.usage, grouped]);
 
   const months = fiscalYearMonths(fy);
-  const cur = useMemo(() => monthlyTotals(usage, test, fy), [usage, test, fy]);
+  // Completeness is judged on raw rows (per meter), whatever the grouping.
+  const completeness = useMemo(() => monthCompleteness(data.usage, data.wards, test), [data.usage, data.wards, test]);
+  const compOf = (m: { year: number; month: number }) => completeness.get(m.year * 100 + m.month);
+  const rawCur = useMemo(() => monthlyTotals(usage, test, fy), [usage, test, fy]);
+  // Half-entered months are shown (faded) but left out of every total,
+  // average and comparison below.
+  const partial = months.map((m, i) => rawCur[i] != null && compOf(m)?.complete === false);
+  const cur = rawCur.map((v, i) => (partial[i] ? null : v));
+  const partialMonths = months.map((m) => ({ ...m, c: compOf(m) })).filter((_, idx) => partial[idx]);
   const prev = useMemo(() => monthlyTotals(usage, test, fy - 1), [usage, test, fy]);
   const hasPrev = prev.some((v) => v != null);
   const yearTotal = cur.reduce<number>((s, v) => s + (v ?? 0), 0);
@@ -144,7 +153,8 @@ export function UsageSection({ data, test, fy, grouped, monthIdx }: {
   // ---- Month view (monthIdx set) ----
   const sel = monthIdx != null ? months[monthIdx] : null;
   const selLabel = sel ? `${MONTH_NAMES_TH[sel.month - 1]} ${sel.year}` : "";
-  const selVal = monthIdx != null ? cur[monthIdx] : null;
+  const selVal = monthIdx != null ? rawCur[monthIdx] : null;
+  const selPartial = monthIdx != null && partial[monthIdx] ? compOf(months[monthIdx]) : undefined;
   const selSameMonthLastYear = monthIdx != null ? prev[monthIdx] : null;
   const selPrevMonth = sel
     ? monthTotal(usage, test, sel.month === 1 ? sel.year - 1 : sel.year, sel.month === 1 ? 12 : sel.month - 1)
@@ -170,13 +180,14 @@ export function UsageSection({ data, test, fy, grouped, monthIdx }: {
   const maxWard = Math.max(...wardStats.map((w) => w.total), 1);
 
   const yearly = useMemo(() => yearlyTotals(usage, test), [usage, test]);
-  const overallLatest = latestMonth(usage, test);
+  const overallLatest = latestCompleteMonth(data.usage, data.wards, test) ?? latestMonth(usage, test);
 
   const monthlyChart = months.map((m, i) => ({
     label: MONTH_ABBR_TH[m.month - 1],
     full: `${MONTH_NAMES_TH[m.month - 1]} ${m.year}`,
-    current: cur[i],
+    current: rawCur[i],
     previous: prev[i],
+    partial: partial[i] ? `กรอกแล้ว ${compOf(m)?.filled}/${compOf(m)?.expected} หอ (ยังไม่ครบ)` : null,
   }));
 
   const wardOrder = useMemo(() => {
@@ -205,6 +216,13 @@ export function UsageSection({ data, test, fy, grouped, monthIdx }: {
 
   return (
     <div className="space-y-4">
+      {partialMonths.length > 0 && (
+        <StatusBanner
+          type="info"
+          title={`กำลังกรอกข้อมูล ${partialMonths.map((m) => `${MONTH_NAMES_TH[m.month - 1]} ${m.year} (${m.c?.filled}/${m.c?.expected} หอ)`).join(", ")}`}
+          message="เดือนที่ยังกรอกไม่ครบจะแสดงเป็นแท่งจางในกราฟ และยังไม่นับในยอดรวม ค่าเฉลี่ย การเปรียบเทียบ และการพยากรณ์ จนกว่าจะกรอกครบ 90% ของหอ"
+        />
+      )}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {sel ? (
           <>
@@ -213,6 +231,8 @@ export function UsageSection({ data, test, fy, grouped, monthIdx }: {
               label={`ยอดการใช้งาน · ${selLabel}`} value={selVal ?? 0} unit="ครั้ง"
               foot={selVal == null
                 ? <span className="text-xs text-base-content/45">ยังไม่มีข้อมูลเดือนนี้</span>
+                : selPartial
+                ? <span className="text-xs text-info">ยังกรอกไม่ครบ ({selPartial.filled}/{selPartial.expected} หอ)</span>
                 : <Delta pct={pct(selVal, selSameMonthLastYear)} label={`เทียบ ${MONTH_ABBR_TH[sel.month - 1]} ${sel.year - 1}`} />}
             />
             <StatTile
@@ -275,11 +295,14 @@ export function UsageSection({ data, test, fy, grouped, monthIdx }: {
                 <Tooltip
                   contentStyle={colors.tooltip} cursor={{ fill: colors.cursor }}
                   labelFormatter={(_, p) => (p?.[0]?.payload as { full?: string })?.full ?? ""}
-                  formatter={(v, name) => [v == null ? "ไม่มีข้อมูล" : Number(v).toLocaleString(), name === "current" ? `ปีงบ ${fy}` : `ปีงบ ${fy - 1}`]}
+                  formatter={(v, name, item) => [
+                    v == null ? "ไม่มีข้อมูล" : `${Number(v).toLocaleString()}${name === "current" && (item?.payload as { partial?: string })?.partial ? ` · ${(item.payload as { partial: string }).partial}` : ""}`,
+                    name === "current" ? `ปีงบ ${fy}` : `ปีงบ ${fy - 1}`]}
                 />
                 <Bar dataKey="current" fill={SERIES.current} radius={[6, 6, 0, 0]} maxBarSize={34}>
                   {monthlyChart.map((_, i) => (
-                    <Cell key={i} fill={SERIES.current} fillOpacity={monthIdx == null || monthIdx === i ? 1 : 0.28} />
+                    <Cell key={i} fill={SERIES.current} fillOpacity={partial[i] ? 0.3 : monthIdx == null || monthIdx === i ? 1 : 0.28}
+                      stroke={partial[i] ? SERIES.current : undefined} strokeDasharray={partial[i] ? "3 3" : undefined} />
                   ))}
                 </Bar>
                 {hasPrev && (
@@ -293,17 +316,20 @@ export function UsageSection({ data, test, fy, grouped, monthIdx }: {
         {showYearly && (
           <BentoCard i={5}>
             <SectionTitle icon={TrendingUp} tone="accent" title="แนวโน้มรายปีงบประมาณ"
-              sub={overallLatest ? `ข้อมูลถึง ${MONTH_NAMES_TH[overallLatest.month - 1]} ${overallLatest.year}` : undefined} />
+              sub={overallLatest ? `ข้อมูลถึง ${MONTH_NAMES_TH[overallLatest.month - 1]} ${overallLatest.year}${yearly.some((y) => y.monthsWithData < 12) ? " · * = ปีงบที่ยังไม่ครบ 12 เดือน" : ""}` : undefined} />
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={yearly.map((y) => ({ ...y, label: `ปีงบ ${String(y.fy).slice(-2)}` }))} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
+                <BarChart data={yearly.map((y) => ({ ...y, label: `ปีงบ ${String(y.fy).slice(-2)}${y.monthsWithData < 12 ? "*" : ""}` }))} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
                   <CartesianGrid stroke={colors.grid} vertical={false} />
                   <XAxis dataKey="label" tick={{ fill: colors.axisTick, fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: colors.axisTick, fontSize: 11 }} axisLine={false} tickLine={false} width={48}
                     tickFormatter={(v: number) => `${Math.round(v / 1000)}k`} />
                   <Tooltip contentStyle={colors.tooltip} cursor={{ fill: colors.cursor }}
                     formatter={(v) => [Number(v).toLocaleString(), "ยอดรวม"]} />
-                  <Bar dataKey="total" fill={SERIES.accent} radius={[6, 6, 0, 0]} maxBarSize={44} />
+                  {/* A fiscal year still in progress is faded so its short bar isn't read as a drop. */}
+                  <Bar dataKey="total" fill={SERIES.accent} radius={[6, 6, 0, 0]} maxBarSize={44}>
+                    {yearly.map((y) => <Cell key={y.fy} fill={SERIES.accent} fillOpacity={y.monthsWithData < 12 ? 0.3 : 1} />)}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -349,7 +375,7 @@ export function UsageSection({ data, test, fy, grouped, monthIdx }: {
             icon={Building2} tone="secondary"
             title={`${grouped ? "หอผู้ป่วย" : "หอผู้ป่วย/เครื่อง"} · ${sel ? selLabel : `ปีงบ ${fy}`}`}
             sub={sel
-              ? `% = เทียบ ${MONTH_NAMES_TH[sel.month - 1]} ${sel.year - 1} · แตะชื่อเพื่อดูรายละเอียด`
+              ? `% = เทียบเดือนก่อนหน้า (${sel.month === 1 ? `${MONTH_NAMES_TH[11]} ${sel.year - 1}` : `${MONTH_NAMES_TH[sel.month - 2]} ${sel.year}`}) · แตะชื่อเพื่อดูรายละเอียด`
               : hasPrev ? `% = เปลี่ยนแปลงจากปีงบ ${fy - 1} (เดือนเดียวกัน) · แตะชื่อเพื่อดูรายละเอียด` : "แตะชื่อเพื่อดูรายละเอียดรายเดือน"}
           />
           {wardStats.length === 0 && (
@@ -474,9 +500,14 @@ function HeatTable({ rows, months, max, fy, anomalySet, onPick, highlight }: {
                     return (
                       <td
                         key={i}
-                        className={`stat-figure-num px-1 py-1 text-center ${flagged ? "font-semibold text-warning outline outline-2 -outline-offset-2 outline-warning" : "text-base-content/85"}`}
+                        className={`stat-figure-num px-1 py-1 text-center ${flagged ? "font-semibold outline outline-2 -outline-offset-2 outline-warning" : ""}`}
                         style={{
-                          background: v ? `color-mix(in oklab, var(--color-primary) ${Math.round(8 + t * 62)}%, transparent)` : undefined,
+                          // Flagged cells get their own warm tint; otherwise
+                          // blue intensity = volume.
+                          background: flagged
+                            ? "color-mix(in oklab, var(--color-warning) 28%, transparent)"
+                            // capped at 52% so normal text keeps ≥4.5:1 contrast in both themes
+                            : v ? `color-mix(in oklab, var(--color-primary) ${Math.round(6 + t * 46)}%, transparent)` : undefined,
                           opacity: highlight == null || highlight === i ? 1 : 0.45,
                         }}
                         title={v == null ? "ไม่มีข้อมูล" : `${v.toLocaleString()}${flagged ? " · ต่ำผิดปกติ" : ""}`}

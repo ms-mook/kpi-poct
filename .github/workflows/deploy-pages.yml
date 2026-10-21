@@ -4,8 +4,11 @@ name: Deploy to GitHub Pages
 # to GitHub Pages on every push to main. One-time setup in the repo:
 #   Settings → Pages → Build and deployment → Source: "GitHub Actions"
 #   Settings → Secrets and variables → Actions → Variables → New variable:
-#     SHEET_ID = <Google Sheet ID>   (optional — without it the site shows
-#                                    the bundled snapshot data)
+#     APPS_SCRIPT_URL = <Apps Script web app URL>   (SETUP.md ข้อ 5 — live
+#                       data + the 🔑 data-entry back office)
+#     SHEET_ID        = <Google Sheet ID>   (optional, read-only fallback via a
+#                       publicly shared sheet; not needed with APPS_SCRIPT_URL)
+#   Without either, the site shows the bundled snapshot data.
 
 on:
   push:
@@ -39,6 +42,7 @@ jobs:
         env:
           # Project sites live under /<repo-name>/ on github.io.
           NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+          NEXT_PUBLIC_APPS_SCRIPT_URL: ${{ vars.APPS_SCRIPT_URL }}
           NEXT_PUBLIC_SHEET_ID: ${{ vars.SHEET_ID }}
 
       # Pages runs Jekyll by default, which hides folders starting with "_"

@@ -1,0 +1,70 @@
+// Runs apps-script/Code.gs against the in-memory fakes in dev-server.mjs.
+// npm run test:backend
+const { call, sheets, DEV_USER } = await import("./dev-server.mjs");
+let pass = 0, fail = 0;
+const t = (name, cond, extra = "") => { cond ? pass++ : fail++; console.log(`${cond ? "✓" : "✗"} ${name} ${cond ? "" : extra}`); };
+const usage = () => sheets.get("ข้อมูลการใช้งาน").data;
+
+const read = call("GET", { query: { action: "read" } });
+t("read ok", read.ok);
+t("read excludes users tab", !("ผู้ใช้งาน" in read.tabs));
+t("read usage rows = 3349", read.tabs["ข้อมูลการใช้งาน"].length === 3349, read.tabs["ข้อมูลการใช้งาน"].length);
+
+const u = sheets.get("ผู้ใช้งาน").data[1];
+t("PIN stored hashed, not plain", u[2] && u[2] !== DEV_USER.pin && !String(u[2]).includes(DEV_USER.pin) && u[3]);
+
+t("wrong PIN rejected", call("POST", { body: { action: "login", staffId: "DEV", pin: "000000" } }).ok === false);
+t("unknown ID rejected", call("POST", { body: { action: "login", staffId: "NOPE", pin: "246810" } }).ok === false);
+const login = call("POST", { body: { action: "login", staffId: "dev", pin: DEV_USER.pin } });
+t("login ok (ID case-insensitive)", login.ok && login.staffId === "DEV", JSON.stringify(login));
+const token = login.token;
+
+t("save without token rejected", call("POST", { body: { action: "saveUsage", year: 2569, month: 10, test: "Glucose", entries: [{ ward: "หอผู้ป่วย 2ก", count: 1 }] } }).auth === true);
+t("tampered token rejected", call("POST", { body: { action: "ping", token: token.slice(0, -2) + "xx" } }).auth === true);
+
+const before = usage().filter(r => r[0] !== "").length;
+let r = call("POST", { body: { action: "saveUsage", token, year: 2569, month: 10, test: "Glucose",
+  entries: [{ ward: "หอผู้ป่วย 2ก", count: 152 }, { ward: "หอผู้ป่วย 2ข", count: 0 }, { ward: "หอผู้ป่วย 2ค", count: null }] } });
+t("new month: 2 added", r.ok && r.added === 2 && r.updated === 0, JSON.stringify(r));
+t("row count +2", usage().filter(r => r[0] !== "").length === before + 2);
+const row = usage().find(x => x[0] === 2569 && x[1] === 10 && x[4] === "หอผู้ป่วย 2ก");
+t("row shape correct", row && row[2] === "ตุลาคม" && row[3] === "Glucose" && row[5] === 152, JSON.stringify(row));
+
+r = call("POST", { body: { action: "saveUsage", token, year: 2569, month: 10, test: "Glucose",
+  entries: [{ ward: "หอผู้ป่วย 2ก", count: 160 }, { ward: "หอผู้ป่วย 2ข", count: null }] } });
+t("resave: 1 updated, 1 removed", r.ok && r.updated === 1 && r.removed === 1, JSON.stringify(r));
+t("row count back to +1", usage().filter(r => r[0] !== "").length === before + 1);
+
+r = call("POST", { body: { action: "saveUsage", token, year: 2569, month: 9, test: "Glucose", entries: [{ ward: "หอผู้ป่วย 2ก", count: 345 }] } });
+t("existing history untouched when value same", r.ok && r.updated === 0 && r.added === 0, JSON.stringify(r));
+
+t("unknown ward rejected", call("POST", { body: { action: "saveUsage", token, year: 2569, month: 10, test: "Glucose", entries: [{ ward: "หอปลอม", count: 1 }] } }).ok === false);
+t("negative rejected", call("POST", { body: { action: "saveUsage", token, year: 2569, month: 10, test: "Glucose", entries: [{ ward: "หอผู้ป่วย 2ก", count: -1 }] } }).ok === false);
+t("bad month rejected", call("POST", { body: { action: "saveUsage", token, year: 2569, month: 13, test: "Glucose", entries: [{ ward: "หอผู้ป่วย 2ก", count: 1 }] } }).ok === false);
+t("blood gas ward under glucose rejected", call("POST", { body: { action: "saveUsage", token, year: 2569, month: 10, test: "Glucose", entries: [{ ward: "RESUS", count: 1 }] } }).ok === false);
+
+r = call("POST", { body: { action: "saveKpi", token, year: 2569, month: 10, entries: [
+  { indicator: "iqc_level1", field: "iqc_level1_num", value: 64 }, { indicator: "iqc_level1", field: "iqc_level1_den", value: 67 },
+  { indicator: "satisfaction_glucose", field: "satisfaction_glucose_pct", value: 81 },
+  { indicator: "training_glucose", field: "training_glucose_den", value: 1250 }] } });
+t("kpi save 4 added", r.ok && r.added === 4, JSON.stringify(r));
+t("kpi wrong field for kind rejected", call("POST", { body: { action: "saveKpi", token, year: 2569, month: 10, entries: [{ indicator: "iqc_level1", field: "iqc_level1_pct", value: 90 }] } }).ok === false);
+t("kpi pct > 100 rejected", call("POST", { body: { action: "saveKpi", token, year: 2569, month: 10, entries: [{ indicator: "eqa_bloodgas", field: "eqa_bloodgas_pct", value: 101 }] } }).ok === false);
+
+t("change PIN wrong old rejected", call("POST", { body: { action: "changePin", token, oldPin: "111111", newPin: "135790" } }).ok === false);
+t("change PIN weak rejected", call("POST", { body: { action: "changePin", token, oldPin: DEV_USER.pin, newPin: "1111" } }).ok === false);
+t("change PIN ok", call("POST", { body: { action: "changePin", token, oldPin: DEV_USER.pin, newPin: "135790" } }).ok);
+t("old PIN no longer works", call("POST", { body: { action: "login", staffId: "DEV", pin: DEV_USER.pin } }).ok === false);
+t("new PIN works", call("POST", { body: { action: "login", staffId: "DEV", pin: "135790" } }).ok);
+
+sheets.get("ผู้ใช้งาน").data[1][4] = false;
+t("disabled user's existing token rejected", call("POST", { body: { action: "ping", token } }).auth === true);
+sheets.get("ผู้ใช้งาน").data[1][4] = true;
+
+for (let i = 0; i < 6; i++) call("POST", { body: { action: "login", staffId: "DEV", pin: "999999" } });
+t("locked out after 5 fails, even with right PIN", call("POST", { body: { action: "login", staffId: "DEV", pin: "135790" } }).ok === false);
+
+const log = sheets.get("บันทึกการแก้ไข").data;
+t("audit log records staff ID", log.some(x => x[1] === "DEV" && x[2] === "saveUsage"));
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

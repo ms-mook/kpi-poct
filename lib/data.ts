@@ -1,16 +1,19 @@
 import Papa from "papaparse";
 import snapshot from "./snapshot.json";
 import type { TestType } from "./constants";
+import { APPS_SCRIPT_URL } from "./backend";
 
 // ---------------------------------------------------------------------------
-// Where the data comes from
+// Where the data comes from (first one configured wins)
 // ---------------------------------------------------------------------------
-// GitHub Pages can't run a server, so there is no service account here: the
-// browser reads each tab of the Google Sheet directly as CSV through the
-// Sheets "gviz" endpoint. That only works when the sheet is shared as
-// "Anyone with the link → Viewer" (see SETUP.md). If no sheet ID is set, or
-// the sheet can't be reached, the page falls back to lib/snapshot.json — the
-// merged workbook as of the last `npm run snapshot` — so it never shows blank.
+// 1. NEXT_PUBLIC_APPS_SCRIPT_URL — the Apps Script backend (apps-script/Code.gs)
+//    returns every tab except "ผู้ใช้งาน". Preferred: the sheet itself can stay
+//    private, which matters once it holds staff PIN hashes.
+// 2. NEXT_PUBLIC_SHEET_ID — read each tab as CSV via the public "gviz"
+//    endpoint. Needs the sheet shared "Anyone with the link → Viewer", which
+//    exposes *every* tab, so don't combine it with the users tab.
+// 3. lib/snapshot.json — the merged workbook as of the last `npm run
+//    snapshot`, so the page never shows blank.
 //
 // Column layout matches kpi-dashboard's tabs (long format, row 1 = header),
 // so the same sheet can later be read/written by a Vercel version with the
@@ -46,6 +49,8 @@ export type KpiConfig = {
   order: number;
   active: boolean;
 };
+
+export const LIVE_CONFIGURED = Boolean(APPS_SCRIPT_URL || SHEET_ID);
 
 export type Dataset = {
   usage: UsageRow[];
@@ -172,8 +177,31 @@ async function fetchTab(tab: string): Promise<Raw> {
   return parsed.data.slice(1); // drop header row
 }
 
-/** Live sheet when configured; otherwise (or on any failure) the snapshot. */
+async function loadViaAppsScript(): Promise<Dataset> {
+  const res = await fetch(`${APPS_SCRIPT_URL}?action=read&_=${Date.now()}`, { cache: "no-store", redirect: "follow" });
+  if (!res.ok) throw new Error(`อ่านข้อมูลจากหลังบ้านไม่ได้ (HTTP ${res.status})`);
+  let body: { ok: boolean; error?: string; tabs?: Record<string, Raw> };
+  try {
+    body = await res.json();
+  } catch {
+    throw new Error("หลังบ้านตอบกลับผิดรูปแบบ — ตรวจการ Deploy web app (Who has access = Anyone)");
+  }
+  if (!body.ok || !body.tabs) throw new Error(body.error ?? "อ่านข้อมูลจากหลังบ้านไม่ได้");
+  const tabs = body.tabs;
+  const ds = build((tab) => tabs[tab] ?? [], "live");
+  if (ds.usage.length === 0) throw new Error(`แท็บ "${TAB.usage}" ไม่มีข้อมูล`);
+  return ds;
+}
+
+/** Live data when configured; otherwise (or on any failure) the snapshot. */
 export async function loadDataset(): Promise<Dataset> {
+  if (APPS_SCRIPT_URL) {
+    try {
+      return await loadViaAppsScript();
+    } catch (err) {
+      return snapshotDataset(err instanceof Error ? err.message : String(err));
+    }
+  }
   if (!SHEET_ID) return snapshotDataset();
   try {
     const tabs = Object.values(TAB);

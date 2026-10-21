@@ -106,7 +106,7 @@ export function KpiSection({ data }: { data: Dataset }) {
     return <StatusBanner type="info" message="ยังไม่มีข้อมูลตัวชี้วัดคุณภาพ" />;
   }
 
-  const failed = configs.filter((c) => kpiStatus(c, kpiResult(c, data.kpi, data.usage, view.year, view.month)) === "fail");
+  const failed = configs.filter((c) => kpiStatus(c, kpiResult(c, data.kpi, data.usage, view.year, view.month, data.wards)) === "fail");
 
   return (
     <div className="space-y-4">
@@ -152,8 +152,8 @@ export function KpiSection({ data }: { data: Dataset }) {
               </div>
 
               {items.map((cfg) => {
-                const yearSeries = kpiYearSeries(cfg, data.kpi, data.usage, viewFy);
-                const here = kpiResult(cfg, data.kpi, data.usage, view.year, view.month);
+                const yearSeries = kpiYearSeries(cfg, data.kpi, data.usage, viewFy, data.wards);
+                const here = kpiResult(cfg, data.kpi, data.usage, view.year, view.month, data.wards);
                 // Indicators assessed once a year / per round (satisfaction,
                 // training, Glucose EQA) usually have no row for the viewed
                 // month — show the most recent result up to that month
@@ -161,7 +161,7 @@ export function KpiSection({ data }: { data: Dataset }) {
                 const fallback = here ? null : [...yearSeries.slice(0, idx + 1)].reverse().find((s) => s.result);
                 const r = here ?? fallback?.result ?? null;
                 const status = kpiStatus(cfg, r);
-                const summary = kpiYearSummary(cfg, data.kpi, data.usage, viewFy);
+                const summary = kpiYearSummary(cfg, data.kpi, data.usage, viewFy, data.wards);
                 const series = yearSeries.map((s) => ({
                   label: MONTH_ABBR_TH[s.month - 1],
                   full: `${MONTH_NAMES_TH[s.month - 1]} ${s.year}`,

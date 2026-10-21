@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "eslint",
-    "snapshot": "python3 scripts/make-snapshot.py"
+    "snapshot": "python3 scripts/make-snapshot.py",
+    "test:backend": "node apps-script/backend.test.mjs",
+    "backend:dev": "node apps-script/dev-server.mjs"
   },
   "dependencies": {
     "daisyui": "^5.7.50",

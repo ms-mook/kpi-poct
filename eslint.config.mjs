@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Plain-JS Apps Script + its Node test harness, not part of the web app.
+    "apps-script/**",
   ]),
 ]);
 

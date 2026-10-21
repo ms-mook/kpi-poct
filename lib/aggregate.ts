@@ -70,6 +70,47 @@ export function monthTotal(usage: UsageRow[], test: TestType, year: number, mont
   return any ? total : null;
 }
 
+// ---------------------------------------------------------------------------
+// Month completeness
+// ---------------------------------------------------------------------------
+// Data is entered ward by ward, so the newest month is often half-filled.
+// Treating it as a full month makes totals, "latest month", forecasts and the
+// ratio_auto KPI denominator all look like a collapse. A month counts as
+// complete once ≥ 90% of the test's registered (active) wards have a row —
+// history has at most 2 of 67 Glucose wards blank in any month.
+
+export const COMPLETE_SHARE = 0.9;
+export type Completeness = { filled: number; expected: number; complete: boolean };
+
+export function monthCompleteness(
+  usage: UsageRow[], wards: { test: TestType; ward: string; active: boolean }[], test: TestType,
+): Map<number, Completeness> {
+  const expected = wards.filter((w) => w.test === test && w.active).length;
+  const perMonth = new Map<number, Set<string>>();
+  for (const r of usage) {
+    if (r.test !== test) continue;
+    const k = key(r.year, r.month);
+    const s = perMonth.get(k) ?? new Set<string>();
+    s.add(r.ward);
+    perMonth.set(k, s);
+  }
+  const out = new Map<number, Completeness>();
+  for (const [k, s] of perMonth) {
+    // No ward list (tab missing) → can't judge; treat as complete.
+    out.set(k, { filled: s.size, expected, complete: expected === 0 || s.size >= expected * COMPLETE_SHARE });
+  }
+  return out;
+}
+
+/** Latest month that is complete (see monthCompleteness). */
+export function latestCompleteMonth(
+  usage: UsageRow[], wards: { test: TestType; ward: string; active: boolean }[], test: TestType,
+): { year: number; month: number } | null {
+  let best = -1;
+  for (const [k, c] of monthCompleteness(usage, wards, test)) if (c.complete) best = Math.max(best, k);
+  return best < 0 ? null : { year: Math.floor(best / 100), month: best % 100 };
+}
+
 /** "หอผู้ป่วย 4ข(2)" → "หอผู้ป่วย 4ข": wards with several Glucose meters are
  * listed once per meter; this folds them back into one ward. */
 export function wardGroupName(ward: string): string {
@@ -101,15 +142,16 @@ export function wardTotalsWithChange(usage: UsageRow[], test: TestType, fy: numb
   });
 }
 
-/** Per-ward totals for one month, with change vs the same month a year
- * earlier (seasonality-safe comparison). */
+/** Per-ward totals for one month, with change vs the previous month. */
 export function wardTotalsForMonth(usage: UsageRow[], test: TestType, year: number, month: number) {
+  const pYear = month === 1 ? year - 1 : year;
+  const pMonth = month === 1 ? 12 : month - 1;
   const cur = new Map<string, number>();
   const prev = new Map<string, number>();
   for (const r of usage) {
-    if (r.test !== test || r.month !== month) continue;
-    if (r.year === year) cur.set(r.ward, (cur.get(r.ward) ?? 0) + r.count);
-    else if (r.year === year - 1) prev.set(r.ward, (prev.get(r.ward) ?? 0) + r.count);
+    if (r.test !== test) continue;
+    if (r.year === year && r.month === month) cur.set(r.ward, (cur.get(r.ward) ?? 0) + r.count);
+    else if (r.year === pYear && r.month === pMonth) prev.set(r.ward, (prev.get(r.ward) ?? 0) + r.count);
   }
   return Array.from(cur, ([ward, total]) => {
     const p = prev.get(ward);
@@ -176,8 +218,12 @@ export function autoDenominatorTest(cfg: KpiConfig): TestType | null {
   return null;
 }
 
+type WardList = { test: TestType; ward: string; active: boolean }[];
+
+/** `wards` (optional) lets ratio_auto refuse a half-entered usage month
+ * instead of dividing by a too-small total. */
 export function kpiResult(
-  cfg: KpiConfig, kpi: KpiRow[], usage: UsageRow[], year: number, month: number,
+  cfg: KpiConfig, kpi: KpiRow[], usage: UsageRow[], year: number, month: number, wards?: WardList,
 ): KpiResult | null {
   const field = (suffix: string) =>
     kpi.find((r) => r.indicator === cfg.id && r.field === `${cfg.id}_${suffix}` && r.year === year && r.month === month)?.value;
@@ -205,6 +251,7 @@ export function kpiResult(
       const n = field("num");
       const test = autoDenominatorTest(cfg);
       if (n == null || !test) return null;
+      if (wards && monthCompleteness(usage, wards, test).get(key(year, month))?.complete === false) return null;
       const d = monthTotal(usage, test, year, month);
       if (!d) return null;
       return { value: (n / d) * 100, numerator: n, denominator: d };
@@ -228,13 +275,13 @@ export function availableKpiYears(kpi: KpiRow[]): number[] {
 }
 
 /** 12 monthly results for a fiscal year. */
-export function kpiYearSeries(cfg: KpiConfig, kpi: KpiRow[], usage: UsageRow[], fy: number) {
-  return fiscalYearMonths(fy).map(({ year, month }) => ({ year, month, result: kpiResult(cfg, kpi, usage, year, month) }));
+export function kpiYearSeries(cfg: KpiConfig, kpi: KpiRow[], usage: UsageRow[], fy: number, wards?: WardList) {
+  return fiscalYearMonths(fy).map(({ year, month }) => ({ year, month, result: kpiResult(cfg, kpi, usage, year, month, wards) }));
 }
 
 /** Whole-year figure: summed num/den for ratios, latest value otherwise. */
-export function kpiYearSummary(cfg: KpiConfig, kpi: KpiRow[], usage: UsageRow[], fy: number): KpiResult | null {
-  const series = kpiYearSeries(cfg, kpi, usage, fy).filter((s) => s.result);
+export function kpiYearSummary(cfg: KpiConfig, kpi: KpiRow[], usage: UsageRow[], fy: number, wards?: WardList): KpiResult | null {
+  const series = kpiYearSeries(cfg, kpi, usage, fy, wards).filter((s) => s.result);
   if (series.length === 0) return null;
   if (cfg.kind === "ratio_pair" || cfg.kind === "ratio_auto") {
     // (count-with-denominator is a running head-count, so the latest month

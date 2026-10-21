@@ -392,3 +392,29 @@ body {
   .pulse-dot { animation: none; }
   .icon-badge:hover { transform: none; }
 }
+
+/* ---------- Readability (WCAG AA contrast) ----------
+   Muted helper text was written as text-base-content/40…/60, which on the
+   light themes lands at 2.4–4.1:1 and on dark at ~3.9:1 — below the 4.5:1
+   that small text needs. Lift those steps per theme family instead of
+   hunting down every usage. Status colours (success/warning/error/info) are
+   bright on purpose for the dark themes; on light backgrounds their text is
+   darkened so a green "+5%" stays legible. Plain (unlayered) rules win over
+   Tailwind's @layer utilities, so no !important is needed. */
+:root:not([data-theme$="-light"]) .text-base-content\/40,
+:root:not([data-theme$="-light"]) .text-base-content\/45 { color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
+:root:not([data-theme$="-light"]) .text-base-content\/50 { color: color-mix(in oklab, var(--color-base-content) 64%, transparent); }
+
+[data-theme$="-light"] .text-base-content\/40,
+[data-theme$="-light"] .text-base-content\/45,
+[data-theme$="-light"] .text-base-content\/50 { color: color-mix(in oklab, var(--color-base-content) 72%, transparent); }
+[data-theme$="-light"] .text-base-content\/55,
+[data-theme$="-light"] .text-base-content\/60 { color: color-mix(in oklab, var(--color-base-content) 76%, transparent); }
+[data-theme$="-light"] .tab:not(.tab-active) { color: color-mix(in oklab, var(--color-base-content) 76%, transparent); }
+
+[data-theme$="-light"] .text-success { color: color-mix(in oklab, var(--color-success), black 42%); }
+[data-theme$="-light"] .text-error   { color: color-mix(in oklab, var(--color-error), black 22%); }
+[data-theme$="-light"] .text-warning { color: color-mix(in oklab, var(--color-warning), black 48%); }
+[data-theme$="-light"] .text-info    { color: color-mix(in oklab, var(--color-info), black 35%); }
+:root:not([data-theme$="-light"]) .text-error { color: color-mix(in oklab, var(--color-error), white 18%); }
+
