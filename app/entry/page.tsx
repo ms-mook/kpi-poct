@@ -80,7 +80,7 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
   const onAuthLost = useCallback(() => {}, []);
 
   return (
-    <main className={`mx-auto w-full px-4 py-5 pb-24 sm:px-6 ${tab === "tables" ? "max-w-7xl" : "max-w-4xl"}`}>
+    <main className="w-full px-4 py-5 pb-24 sm:px-6 lg:px-10 2xl:px-14">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-base-content/8 pb-4">
         <div className="flex items-center gap-3">
           <LogoMark size={48} />

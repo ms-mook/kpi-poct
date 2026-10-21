@@ -7,11 +7,13 @@ import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { LiveClock } from "@/components/LiveClock";
 import { StatusBanner } from "@/components/StatusBanner";
 import { UsageSection } from "@/components/UsageSection";
+import { RangeSection } from "@/components/RangeSection";
 import { KpiSection } from "@/components/KpiSection";
 import { TrendSection } from "@/components/TrendSection";
 import { loadDataset, snapshotDataset, LIVE_CONFIGURED, type Dataset } from "@/lib/data";
 import { KeyButton } from "@/components/KeyButton";
 import { availableFiscalYears, hasMultiDeviceWards, latestCompleteMonth, latestMonth, monthCompleteness, monthlyTotals } from "@/lib/aggregate";
+import { keyYM, monthsWithData, shiftKey, ymKey } from "@/lib/range";
 import { fiscalYearMonths, fiscalYearOf, MONTH_ABBR_TH, MONTH_NAMES_TH, TESTS, TEST_META, type TestType } from "@/lib/constants";
 
 type Tab = "usage" | "trend" | "kpi";
@@ -31,6 +33,11 @@ export default function DashboardPage() {
   const [grouped, setGrouped] = useState(true);
   // null = ทั้งปีงบ; 0..11 = one month of the chosen fiscal year (0 = ต.ค.)
   const [monthIdx, setMonthIdx] = useState<number | null>(null);
+
+  // "fy" = ปีงบ (+ optional single month); "range" = custom from–to months.
+  const [mode, setMode] = useState<"fy" | "range">("fy");
+  const [rangeFrom, setRangeFrom] = useState<number | null>(null);
+  const [rangeTo, setRangeTo] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -71,6 +78,32 @@ export default function DashboardPage() {
   // the whole year instead of showing an empty month.
   const viewMonth = monthIdx != null && monthHasData[monthIdx] ? monthIdx : null;
   const completeness = useMemo(() => monthCompleteness(data.usage, data.wards, test), [data.usage, data.wards, test]);
+  // Months a custom range can start/end on, and the "latest N months" anchor
+  // (latest complete month, so a half-entered month doesn't open the range).
+  const dataMonths = useMemo(() => monthsWithData(data.usage, test), [data.usage, test]);
+  const anchor = useMemo(() => {
+    const lc = latestCompleteMonth(data.usage, data.wards, test);
+    return lc ? ymKey(lc.year, lc.month) : dataMonths[dataMonths.length - 1] ?? null;
+  }, [data.usage, data.wards, test, dataMonths]);
+  const lastN = (n: number): [number, number] | null => {
+    if (anchor == null) return null;
+    const from = Math.max(shiftKey(anchor, -(n - 1)), dataMonths[0] ?? 0);
+    return [from, anchor];
+  };
+  const inList = (k: number | null) => k != null && dataMonths.includes(k);
+  const defRange = lastN(6);
+  const viewFrom = inList(rangeFrom) ? rangeFrom! : defRange?.[0] ?? null;
+  const viewTo = inList(rangeTo) ? rangeTo! : defRange?.[1] ?? null;
+  const [rFrom, rTo] = viewFrom != null && viewTo != null ? [Math.min(viewFrom, viewTo), Math.max(viewFrom, viewTo)] : [null, null];
+  const applyPreset = (n: number | "all") => {
+    const r = n === "all" ? (dataMonths.length ? ([dataMonths[0], anchor ?? dataMonths[dataMonths.length - 1]] as [number, number]) : null) : lastN(n);
+    if (r) { setRangeFrom(r[0]); setRangeTo(r[1]); }
+  };
+  const monthOpt = (k: number) => {
+    const { year, month } = keyYM(k);
+    const c = completeness.get(k);
+    return `${MONTH_ABBR_TH[month - 1]} ${year}${c?.complete === false ? " (ยังไม่ครบ)" : ""}`;
+  };
   // "Data up to" is what a reader needs — not when the page happened to load.
   const dataUntil = useMemo(() => {
     // Only months entered for (almost) every ward count as "data up to".
@@ -155,29 +188,63 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
-            <select
-              className="select select-sm select-bordered w-32 bg-base-200/60"
-              value={viewFy ?? ""}
-              onChange={(e) => setFy(Number(e.target.value))}
-              aria-label="ปีงบประมาณ"
-            >
-              {[...years].reverse().map((y) => <option key={y} value={y}>ปีงบ {y}</option>)}
-            </select>
-            <select
-              className="select select-sm select-bordered w-36 bg-base-200/60"
-              value={viewMonth ?? ""}
-              onChange={(e) => setMonthIdx(e.target.value === "" ? null : Number(e.target.value))}
-              aria-label="เดือน"
-            >
-              <option value="">ทั้งปีงบ</option>
-              {viewFy && fiscalYearMonths(viewFy).map((m, i) => (
-                <option key={i} value={i} disabled={!monthHasData[i]}>
-                  {MONTH_ABBR_TH[m.month - 1]} {m.year}{!monthHasData[i] ? " (ไม่มีข้อมูล)"
-                    : completeness.get(m.year * 100 + m.month)?.complete === false
-                      ? ` (กรอกแล้ว ${completeness.get(m.year * 100 + m.month)!.filled}/${completeness.get(m.year * 100 + m.month)!.expected})` : ""}
-                </option>
+            <div className="join" role="group" aria-label="รูปแบบช่วงเวลา">
+              {([["fy", "ปีงบประมาณ"], ["range", "กำหนดช่วงเอง"]] as const).map(([k, label]) => (
+                <button key={k} onClick={() => setMode(k)} aria-pressed={mode === k}
+                  className={`btn join-item btn-sm ${mode === k ? "btn-secondary" : "glass-panel border-0 text-base-content/70"}`}>
+                  {label}
+                </button>
               ))}
-            </select>
+            </div>
+            {mode === "fy" ? (
+              <>
+                <select
+                  className="select select-sm select-bordered w-32 bg-base-200/60"
+                  value={viewFy ?? ""}
+                  onChange={(e) => setFy(Number(e.target.value))}
+                  aria-label="ปีงบประมาณ"
+                >
+                  {[...years].reverse().map((y) => <option key={y} value={y}>ปีงบ {y}</option>)}
+                </select>
+                <select
+                  className="select select-sm select-bordered w-36 bg-base-200/60"
+                  value={viewMonth ?? ""}
+                  onChange={(e) => setMonthIdx(e.target.value === "" ? null : Number(e.target.value))}
+                  aria-label="เดือน"
+                >
+                  <option value="">ทั้งปีงบ</option>
+                  {viewFy && fiscalYearMonths(viewFy).map((m, i) => (
+                    <option key={i} value={i} disabled={!monthHasData[i]}>
+                      {MONTH_ABBR_TH[m.month - 1]} {m.year}{!monthHasData[i] ? " (ไม่มีข้อมูล)"
+                        : completeness.get(m.year * 100 + m.month)?.complete === false
+                          ? ` (กรอกแล้ว ${completeness.get(m.year * 100 + m.month)!.filled}/${completeness.get(m.year * 100 + m.month)!.expected})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <>
+                <label className="flex items-center gap-1.5 text-xs text-base-content/60">
+                  ตั้งแต่
+                  <select className="select select-sm select-bordered w-40 bg-base-200/60" value={rFrom ?? ""} aria-label="เดือนเริ่มต้น"
+                    onChange={(e) => setRangeFrom(Number(e.target.value))}>
+                    {dataMonths.map((k) => <option key={k} value={k}>{monthOpt(k)}</option>)}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1.5 text-xs text-base-content/60">
+                  ถึง
+                  <select className="select select-sm select-bordered w-40 bg-base-200/60" value={rTo ?? ""} aria-label="เดือนสิ้นสุด"
+                    onChange={(e) => setRangeTo(Number(e.target.value))}>
+                    {dataMonths.map((k) => <option key={k} value={k}>{monthOpt(k)}</option>)}
+                  </select>
+                </label>
+                <div className="flex flex-wrap items-center gap-1" role="group" aria-label="ช่วงลัด">
+                  {([[3, "3 เดือนล่าสุด"], [6, "6 เดือนล่าสุด"], [12, "12 เดือนล่าสุด"], ["all", "ทั้งหมด"]] as const).map(([n, label]) => (
+                    <button key={label} onClick={() => applyPreset(n)} className="btn btn-xs border-base-content/10 bg-base-200/60 text-base-content/70">{label}</button>
+                  ))}
+                </div>
+              </>
+            )}
             {multiDevice && (
               <label className="flex cursor-pointer items-center gap-2 rounded-field px-2 py-1 text-xs text-base-content/70"
                 title="หอที่มีเครื่องหลายเครื่อง เช่น 4ข(1), 4ข(2), 4ข(3)">
@@ -187,7 +254,13 @@ export default function DashboardPage() {
               </label>
             )}
           </div>
-          {viewFy ? (
+          {mode === "range" ? (
+            rFrom != null && rTo != null ? (
+              <RangeSection key={`${test}-${grouped}-${rFrom}-${rTo}`} data={data} test={test} grouped={grouped} from={rFrom} to={rTo} />
+            ) : (
+              <StatusBanner type="info" message={`ยังไม่มีข้อมูลการใช้งาน ${test}`} />
+            )
+          ) : viewFy ? (
             <UsageSection key={`${test}-${viewFy}-${grouped}`} data={data} test={test} fy={viewFy} grouped={grouped} monthIdx={viewMonth} />
           ) : (
             <StatusBanner type="info" message={`ยังไม่มีข้อมูลการใช้งาน ${test}`} />
