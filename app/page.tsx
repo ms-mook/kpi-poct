@@ -46,7 +46,7 @@ export default function DashboardPage() {
   const viewFy = fy != null && years.includes(fy) ? fy : years[years.length - 1];
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] px-4 py-5 sm:px-6 lg:px-10">
+    <div className="w-full px-4 py-5 sm:px-6 lg:px-10 2xl:px-14">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <span className="icon-badge flex h-11 w-11 shrink-0 items-center justify-center rounded-field bg-primary/15 text-primary">
