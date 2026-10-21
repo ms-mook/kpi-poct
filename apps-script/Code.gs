@@ -394,9 +394,14 @@ function saveUsage_(body, staffId) {
   }
 }
 
+function isND_(v) { return /^n\.?\/?d\.?$/i.test(String(v == null ? "" : v).trim()); }
+/** ค่าในชีต: ND → "ND", ตัวเลข → number */
+function cellValue_(v) { return isND_(v) ? "ND" : Number(v); }
+
 /**
  * body: {year, month, entries:[{indicator, field, value|null}]}
- * field = "<indicator>_<pct|num|den|count>" ตามชนิดของตัวชี้วัด; value ว่าง = ไม่ได้ประเมิน (ลบแถว)
+ * field = "<indicator>_<pct|num|den|count>" ตามชนิดของตัวชี้วัด; value ว่าง = ยังไม่กรอก (ลบแถว);
+ * value "ND" = ไม่ได้ดำเนินการเดือนนี้ — เก็บคำว่า ND ไว้ในชีต และไม่นำไปคิด %
  */
 function saveKpi_(body, staffId) {
   var ym = checkYearMonth_(body.year, body.month);
@@ -415,6 +420,7 @@ function saveKpi_(body, staffId) {
     if ((KIND_FIELDS[kind] || []).indexOf(suffix) < 0) throw new Error('ช่อง "' + field + '" ใช้กับตัวชี้วัดชนิด ' + kind + " ไม่ได้");
     var v = en.value;
     if (v === null || v === undefined || v === "") { wanted[id + "|" + field] = null; return; }
+    if (isND_(v)) { wanted[id + "|" + field] = "ND"; return; }
     v = Number(v);
     if (!(isFinite(v) && v >= 0)) throw new Error('ค่าของ "' + field + '" ต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป');
     if (suffix === "pct" && v > 100) throw new Error('ร้อยละของ "' + id + '" ต้องไม่เกิน 100');
@@ -435,7 +441,7 @@ function saveKpi_(body, staffId) {
       if (seen[k]) { removed++; return; }
       seen[k] = true;
       if (wanted[k] === null) { removed++; return; }
-      if (Number(r[5]) !== wanted[k]) updated++;
+      if (cellValue_(r[5]) !== wanted[k]) updated++;
       next.push([ym.year, ym.month, MONTH_NAMES_TH[ym.month - 1], String(r[3]).trim(), String(r[4]).trim(), wanted[k]]);
     });
     Object.keys(wanted).forEach(function (k) {

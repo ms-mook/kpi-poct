@@ -8,7 +8,7 @@ import { BentoCard } from "./BentoCard";
 import { StatusBanner } from "./StatusBanner";
 import { fiscalYearMonths, fiscalYearOf, MONTH_ABBR_TH, MONTH_NAMES_TH } from "@/lib/constants";
 import type { Dataset, KpiConfig } from "@/lib/data";
-import { availableKpiYears, kpiResult, kpiStatus, kpiYearSeries, kpiYearSummary, type KpiResult } from "@/lib/aggregate";
+import { availableKpiYears, kpiIsND, kpiResult, kpiStatus, kpiYearSeries, kpiYearSummary, type KpiResult } from "@/lib/aggregate";
 import { useChartColors } from "@/lib/chart-colors";
 
 // Tailwind only ships classes it can see in source; these are built
@@ -158,7 +158,10 @@ export function KpiSection({ data }: { data: Dataset }) {
                 // training, Glucose EQA) usually have no row for the viewed
                 // month — show the most recent result up to that month
                 // instead of an empty dash, and say which month it's from.
-                const fallback = here ? null : [...yearSeries.slice(0, idx + 1)].reverse().find((s) => s.result);
+                // A month marked ND (not performed) never borrows an older result:
+                // it shows "ND" and stays out of every calculation.
+                const nd = !here && kpiIsND(cfg, data.kpi, view.year, view.month);
+                const fallback = here || nd ? null : [...yearSeries.slice(0, idx + 1)].reverse().find((s) => s.result);
                 const r = here ?? fallback?.result ?? null;
                 const status = kpiStatus(cfg, r);
                 const summary = kpiYearSummary(cfg, data.kpi, data.usage, viewFy, data.wards);
@@ -183,13 +186,14 @@ export function KpiSection({ data }: { data: Dataset }) {
                     </div>
                     <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
                       <span className={`stat-figure-num text-2xl font-semibold ${!r ? "text-base-content/30" : fallback ? "text-base-content/70" : "text-base-content"}`}>
-                        {fmt(cfg, r)}
+                        {nd ? "ND" : fmt(cfg, r)}
                       </span>
-                      {summary && <span className="text-xs text-base-content/45">(ทั้งปี {fmt(cfg, summary)})</span>}
+                      {summary && <span className="text-xs text-base-content/45">(ทั้งปี {fmt(cfg, summary)}{summary.months ? ` · ${summary.months} เดือนที่ดำเนินการ` : ""})</span>}
                     </div>
                     <div className="mt-0.5 text-[11px] text-base-content/45">
                       {fallback
                         ? `ผลล่าสุด ${MONTH_ABBR_TH[fallback.month - 1]} ${String(fallback.year).slice(-2)} · ไม่ได้ประเมินในเดือนนี้${ratio ? ` · ${ratio}` : ""}`
+                        : nd ? "ไม่ได้ดำเนินการเดือนนี้ (ND) · ไม่นำไปคิด %"
                         : !r ? "ยังไม่มีผลประเมินในปีงบนี้" : ratio || " "}
                     </div>
                     {sparse && <RoundChips cfg={cfg} series={yearSeries} />}

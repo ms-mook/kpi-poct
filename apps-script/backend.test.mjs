@@ -50,6 +50,14 @@ r = call("POST", { body: { action: "saveKpi", token, year: 2569, month: 10, entr
 t("kpi save 4 added", r.ok && r.added === 4, JSON.stringify(r));
 t("kpi wrong field for kind rejected", call("POST", { body: { action: "saveKpi", token, year: 2569, month: 10, entries: [{ indicator: "iqc_level1", field: "iqc_level1_pct", value: 90 }] } }).ok === false);
 t("kpi pct > 100 rejected", call("POST", { body: { action: "saveKpi", token, year: 2569, month: 10, entries: [{ indicator: "eqa_bloodgas", field: "eqa_bloodgas_pct", value: 101 }] } }).ok === false);
+r = call("POST", { body: { action: "saveKpi", token, year: 2569, month: 11, entries: [
+  { indicator: "eqa_bloodgas", field: "eqa_bloodgas_pct", value: "ND" }, { indicator: "iqc_level2", field: "iqc_level2_num", value: "nd" }] } });
+t("kpi ND saved (stored as ND, not a number)", r.ok && r.added === 2, JSON.stringify(r));
+r = call("POST", { body: { action: "saveKpi", token, year: 2569, month: 11, entries: [{ indicator: "eqa_bloodgas", field: "eqa_bloodgas_pct", value: "N/D" }] } });
+t("kpi ND again = no change", r.ok && r.added === 0 && r.updated === 0, JSON.stringify(r));
+r = call("POST", { body: { action: "saveKpi", token, year: 2569, month: 11, entries: [{ indicator: "eqa_bloodgas", field: "eqa_bloodgas_pct", value: 99 }] } });
+t("kpi ND → number counts as update", r.ok && r.updated === 1, JSON.stringify(r));
+t("kpi garbage text still rejected", call("POST", { body: { action: "saveKpi", token, year: 2569, month: 11, entries: [{ indicator: "eqa_bloodgas", field: "eqa_bloodgas_pct", value: "abc" }] } }).ok === false);
 
 t("change PIN wrong old rejected", call("POST", { body: { action: "changePin", token, oldPin: "111111", newPin: "135790" } }).ok === false);
 t("change PIN weak rejected", call("POST", { body: { action: "changePin", token, oldPin: DEV_USER.pin, newPin: "1111" } }).ok === false);

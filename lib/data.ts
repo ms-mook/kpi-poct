@@ -32,7 +32,11 @@ export const TAB = {
 export type UsageRow = { year: number; month: number; test: TestType; ward: string; count: number };
 export type WardRow = { test: TestType; ward: string; order: number; active: boolean };
 export type DeviceRow = { ward: string; sn: string; fromFy: number | null; toFy: number | null };
-export type KpiRow = { year: number; month: number; indicator: string; field: string; value: number };
+/** value === null means "ND" (ไม่ได้ดำเนินการ): recorded on purpose, never used in any calculation. */
+export type KpiRow = { year: number; month: number; indicator: string; field: string; value: number | null };
+
+/** "ND" / "nd" / "N/D" / "N.D." typed in a cell. */
+export const isND = (v: unknown): boolean => /^n\.?\/?d\.?$/i.test(String(v ?? "").trim());
 export type KpiKind = "direct_percent" | "ratio_pair" | "ratio_auto" | "count";
 export type KpiConfig = {
   id: string;
@@ -110,8 +114,10 @@ function parseDevices(rows: Raw): DeviceRow[] {
 function parseKpi(rows: Raw): KpiRow[] {
   const out: KpiRow[] = [];
   for (const [y, m, , indicator, field, value] of rows) {
-    const year = num(y), month = num(m), v = num(value);
-    if (year == null || month == null || v == null || !str(indicator) || !str(field)) continue;
+    const year = num(y), month = num(m);
+    const v = isND(value) ? null : num(value);
+    if (year == null || month == null || !str(indicator) || !str(field)) continue;
+    if (v == null && !isND(value)) continue;
     out.push({ year, month, indicator: str(indicator), field: str(field), value: v });
   }
   return out;

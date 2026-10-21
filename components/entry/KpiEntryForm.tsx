@@ -5,7 +5,7 @@ import { CheckCircle2, Info, Loader2, Save, Undo2, XCircle } from "lucide-react"
 import { StatusBanner } from "../StatusBanner";
 import { PeriodPicker, nextMonthToFill } from "./PeriodPicker";
 import { MONTH_NAMES_TH } from "@/lib/constants";
-import type { Dataset, KpiConfig, KpiRow } from "@/lib/data";
+import { isND, type Dataset, type KpiConfig, type KpiRow } from "@/lib/data";
 import { autoDenominatorTest, kpiResult, kpiStatus, monthCompleteness, monthTotal } from "@/lib/aggregate";
 import { AuthError, saveKpi, type SaveResult } from "@/lib/backend";
 
@@ -33,7 +33,10 @@ function fieldsFor(cfg: KpiConfig): FieldDef[] {
 
 const fkey = (id: string, suffix: string) => `${id}_${suffix}`;
 
-function parseNum(raw: string): number | null {
+/** "" → null (empty); "ND" → "ND" (done on purpose: not performed this month);
+ * number → number; anything else → NaN (invalid). */
+function parseNum(raw: string): number | "ND" | null {
+  if (isND(raw)) return "ND";
   const s = raw.replace(/[,%\s]/g, "");
   if (s === "") return null;
   return /^\d+(\.\d+)?$/.test(s) ? Number(s) : NaN;
@@ -80,7 +83,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
     const out: Record<string, string> = {};
     for (const { cfg, k } of allFields) {
       const row = data.kpi.find((r) => r.year === year && r.month === month && r.indicator === cfg.id && r.field === k);
-      out[k] = row ? String(row.value) : "";
+      out[k] = row ? (row.value === null ? "ND" : String(row.value)) : "";
     }
     return out;
   }, [allFields, data.kpi, year, month]);
@@ -92,7 +95,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
   const dirty = allFields.some(({ k }) => (values[k] ?? "") !== (initial[k] ?? ""));
   const invalid = allFields.filter(({ f, k }) => {
     const v = parseNum(values[k] ?? "");
-    return Number.isNaN(v) || (f.percent && v != null && v > 100);
+    return Number.isNaN(v) || (f.percent && typeof v === "number" && v > 100);
   });
 
   useEffect(() => {
@@ -106,7 +109,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
   // dashboard uses, so what you see here is what the dashboard will show.
   const previewRows: KpiRow[] = useMemo(() => allFields.flatMap(({ cfg, k }) => {
     const v = parseNum(values[k] ?? "");
-    return v == null || Number.isNaN(v) ? [] : [{ year, month, indicator: cfg.id, field: k, value: v }];
+    return v == null || Number.isNaN(v) ? [] : [{ year, month, indicator: cfg.id, field: k, value: v === "ND" ? null : v }];
   }), [allFields, values, year, month]);
 
   const groups = useMemo(() => {
@@ -118,7 +121,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
   async function save() {
     if (invalid.length) return;
     const clearing = allFields.filter(({ k }) => !(values[k] ?? "").trim() && initial[k]);
-    if (clearing.length && !window.confirm(`จะลบค่าเดิม ${clearing.length} ช่องที่เว้นว่างไว้ (= ไม่ได้ประเมินเดือนนี้) — ยืนยัน?`)) return;
+    if (clearing.length && !window.confirm(`จะลบค่าเดิม ${clearing.length} ช่องที่เว้นว่างไว้ (ถ้าเดือนนี้ไม่ได้ดำเนินการ ให้พิมพ์ ND แทนการเว้นว่าง) — ยืนยัน?`)) return;
     setSaving(true); setError(null); onResult(null);
     try {
       const entries = allFields
@@ -142,7 +145,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-base-content">ตัวชี้วัดคุณภาพ · {label}</h2>
-          <p className="mt-0.5 text-xs text-base-content/50">กรอกเฉพาะตัวที่ประเมินในเดือนนี้ · ช่องว่าง = ไม่ได้ประเมิน (ND) · ไม่ต้องใส่ % หรือ “คน”</p>
+          <p className="mt-0.5 text-xs text-base-content/50">กรอกเฉพาะตัวที่ประเมินในเดือนนี้ · พิมพ์ ND = ไม่ได้ดำเนินการ (ไม่นำไปคิด %) · ช่องว่าง = ยังไม่กรอก · ไม่ต้องใส่ % หรือ “คน”</p>
         </div>
       </div>
       {error && <StatusBanner type="error" title="บันทึกไม่สำเร็จ" message={error} />}
@@ -163,6 +166,9 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
                   <div key={cfg.id} className="rounded-field border border-base-content/6 bg-base-content/3 p-3">
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <span className="text-xs font-medium text-base-content/75">{cfg.name.split(" — ")[1] ?? cfg.shortName}</span>
+                      {!r && fieldsFor(cfg).some(({ suffix }) => parseNum(values[fkey(cfg.id, suffix)] ?? "") === "ND") && (
+                        <span className="badge badge-sm shrink-0 border-0 bg-base-content/8 text-base-content/60">ND · ไม่นำไปคิด %</span>
+                      )}
                       {r && (
                         <span className={`badge badge-sm shrink-0 gap-1 border-0 ${
                           st === "pass" ? "bg-success/15 text-success" : st === "fail" ? "bg-error/15 text-error" : "bg-base-content/8 text-base-content/60"}`}>
@@ -176,7 +182,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
                         const k = fkey(cfg.id, f.suffix);
                         const raw = values[k] ?? "";
                         const v = parseNum(raw);
-                        const bad = Number.isNaN(v) || (f.percent && v != null && v > 100);
+                        const bad = Number.isNaN(v) || (f.percent && typeof v === "number" && v > 100);
                         const changed = raw !== (initial[k] ?? "");
                         return (
                           <label key={k} className={fieldsFor(cfg).length === 1 ? "sm:col-span-2" : ""}>
@@ -184,9 +190,9 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
                             <input
                               inputMode="decimal"
                               value={raw}
-                              onChange={(e) => { setValues((p) => ({ ...p, [k]: e.target.value })); onResult(null); }}
-                              className={`input input-sm input-bordered w-full bg-base-100/60 text-right font-mono ${bad ? "input-error" : changed ? "input-primary" : ""}`}
-                              placeholder="ND"
+                              onChange={(e) => { const nv = isND(e.target.value) ? "ND" : e.target.value; setValues((p) => ({ ...p, [k]: nv })); onResult(null); }}
+                              className={`input input-sm input-bordered w-full bg-base-100/60 text-right font-mono uppercase placeholder:normal-case ${bad ? "input-error" : changed ? "input-primary" : ""}`}
+                              placeholder="ตัวเลข หรือ ND"
                             />
                             {f.hint && <span className="mt-1 block text-[10px] text-base-content/40">{f.hint}</span>}
                           </label>
@@ -213,7 +219,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
 
       <div className="sticky bottom-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-box border border-base-content/8 bg-base-200/90 p-3 backdrop-blur">
         <div className="text-xs text-base-content/60">
-          {invalid.length > 0 ? <span className="text-error">มีช่องที่ไม่ถูกต้อง {invalid.length} ช่อง (ตัวเลขเท่านั้น, ร้อยละไม่เกิน 100)</span>
+          {invalid.length > 0 ? <span className="text-error">มีช่องที่ไม่ถูกต้อง {invalid.length} ช่อง (ตัวเลข หรือ ND เท่านั้น, ร้อยละไม่เกิน 100)</span>
             : dirty ? "มีการแก้ไขที่ยังไม่บันทึก"
             : <span className="inline-flex items-center gap-1"><CheckCircle2 size={13} className="text-success" />ตรงกับข้อมูลในชีต</span>}
         </div>

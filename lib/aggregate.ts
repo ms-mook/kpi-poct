@@ -207,6 +207,8 @@ export type KpiResult = {
   value: number;
   numerator?: number;
   denominator?: number;
+  /** Year summaries only: how many months with a real number went into it. */
+  months?: number;
 };
 
 /** Which usage stream a `ratio_auto` indicator divides by — taken from the id
@@ -225,8 +227,9 @@ type WardList = { test: TestType; ward: string; active: boolean }[];
 export function kpiResult(
   cfg: KpiConfig, kpi: KpiRow[], usage: UsageRow[], year: number, month: number, wards?: WardList,
 ): KpiResult | null {
-  const field = (suffix: string) =>
-    kpi.find((r) => r.indicator === cfg.id && r.field === `${cfg.id}_${suffix}` && r.year === year && r.month === month)?.value;
+  // An ND cell (value null) reads as "no value" — the month simply drops out.
+  const field = (suffix: string): number | undefined =>
+    kpi.find((r) => r.indicator === cfg.id && r.field === `${cfg.id}_${suffix}` && r.year === year && r.month === month)?.value ?? undefined;
 
   switch (cfg.kind) {
     case "direct_percent": {
@@ -270,6 +273,12 @@ export function kpiStatus(cfg: KpiConfig, r: KpiResult | null): "pass" | "fail" 
     : (r.value >= cfg.targetValue ? "pass" : "fail");
 }
 
+/** True when the month was explicitly marked ND for this indicator and
+ * nothing in it can be calculated (so the dashboard says "ND", not "—"). */
+export function kpiIsND(cfg: KpiConfig, kpi: KpiRow[], year: number, month: number): boolean {
+  return kpi.some((r) => r.indicator === cfg.id && r.year === year && r.month === month && r.value === null);
+}
+
 export function availableKpiYears(kpi: KpiRow[]): number[] {
   return Array.from(new Set(kpi.map((r) => fiscalYearOf(r.year, r.month)))).sort((a, b) => a - b);
 }
@@ -279,7 +288,8 @@ export function kpiYearSeries(cfg: KpiConfig, kpi: KpiRow[], usage: UsageRow[], 
   return fiscalYearMonths(fy).map(({ year, month }) => ({ year, month, result: kpiResult(cfg, kpi, usage, year, month, wards) }));
 }
 
-/** Whole-year figure: summed num/den for ratios, latest value otherwise. */
+/** Whole-year figure from the months that have a number (ND/empty months are skipped):
+ * summed num/den for ratios, mean for monthly percentages, latest value for head-counts. */
 export function kpiYearSummary(cfg: KpiConfig, kpi: KpiRow[], usage: UsageRow[], fy: number, wards?: WardList): KpiResult | null {
   const series = kpiYearSeries(cfg, kpi, usage, fy, wards).filter((s) => s.result);
   if (series.length === 0) return null;
@@ -288,7 +298,13 @@ export function kpiYearSummary(cfg: KpiConfig, kpi: KpiRow[], usage: UsageRow[],
     // is the year figure — handled by the fall-through below.)
     const n = series.reduce((s, x) => s + (x.result!.numerator ?? 0), 0);
     const d = series.reduce((s, x) => s + (x.result!.denominator ?? 0), 0);
-    return d ? { value: (n / d) * 100, numerator: n, denominator: d } : null;
+    return d ? { value: (n / d) * 100, numerator: n, denominator: d, months: series.length } : null;
+  }
+  if (cfg.kind === "direct_percent") {
+    // Several months with a percentage: average only the months that have one
+    // (ND / empty months are not part of the divisor).
+    const vals = series.map((x) => x.result!.value);
+    return { value: vals.reduce((a, b) => a + b, 0) / vals.length, months: vals.length };
   }
   return series[series.length - 1].result;
 }
