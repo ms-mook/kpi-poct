@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { Activity, ArrowLeft, KeyRound, LayoutDashboard, Loader2, LogOut, ShieldCheck, Syringe } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { StatusBanner } from "@/components/StatusBanner";
@@ -11,6 +10,7 @@ import { KpiEntryForm } from "@/components/entry/KpiEntryForm";
 import { ChangePinDialog } from "@/components/entry/ChangePinDialog";
 import { APPS_SCRIPT_URL, getSession, login, logout, type Session } from "@/lib/backend";
 import { loadDataset, type Dataset } from "@/lib/data";
+import { HOME_HREF } from "@/lib/paths";
 
 const TABS = [
   { id: "usage", label: "จำนวนการใช้งาน", icon: Syringe },
@@ -41,14 +41,14 @@ export default function EntryPage() {
 
   if (!APPS_SCRIPT_URL) {
     return (
-      <div className="mx-auto w-full max-w-2xl px-4 py-16">
+      <main className="mx-auto w-full max-w-2xl px-4 py-16">
         <StatusBanner
           type="info"
           title="ยังไม่ได้เชื่อมหลังบ้าน"
           message={<>ต้องติดตั้ง Apps Script ใน Google Sheet และใส่ตัวแปร <code>APPS_SCRIPT_URL</code> ใน GitHub ก่อน — ดูขั้นตอนใน SETUP.md ข้อ 3–5</>}
         />
-        <Link href="/" className="btn btn-ghost btn-sm mt-6 gap-1.5"><ArrowLeft size={15} /> กลับหน้า Dashboard</Link>
-      </div>
+        <a href={HOME_HREF} className="btn btn-ghost btn-sm mt-6 gap-1.5"><ArrowLeft size={15} /> กลับหน้า Dashboard</a>
+      </main>
     );
   }
   if (!checked) return null;
@@ -77,8 +77,8 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
   const onAuthLost = useCallback(() => {}, []);
 
   return (
-    <div className="w-full px-4 py-5 pb-24 sm:px-6 lg:px-10 2xl:px-14">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <main className="mx-auto w-full max-w-4xl px-4 py-5 pb-24 sm:px-6">
+      <header className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-base-content/8 pb-4">
         <div className="flex items-center gap-3">
           <span className="icon-badge flex h-11 w-11 shrink-0 items-center justify-center rounded-field bg-primary/15 text-primary">
             <Activity size={22} strokeWidth={2.4} />
@@ -92,9 +92,9 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link href="/" className="btn btn-ghost btn-sm gap-1.5 text-base-content/70"><LayoutDashboard size={15} /> Dashboard</Link>
-          <button onClick={() => setPinOpen(true)} className="btn btn-ghost btn-sm gap-1.5 text-base-content/70"><KeyRound size={15} /> เปลี่ยน PIN</button>
-          <button onClick={onSignOut} className="btn btn-ghost btn-sm gap-1.5 text-base-content/70 hover:text-error"><LogOut size={15} /> ออกจากระบบ</button>
+          <a href={HOME_HREF} aria-label="กลับหน้า Dashboard" title="กลับหน้า Dashboard" className="btn btn-ghost btn-sm gap-1.5 text-base-content/70"><LayoutDashboard size={15} /> <span className="hidden sm:inline">Dashboard</span></a>
+          <button onClick={() => setPinOpen(true)} aria-label="เปลี่ยน PIN" title="เปลี่ยน PIN" className="btn btn-ghost btn-sm gap-1.5 text-base-content/70"><KeyRound size={15} /> <span className="hidden sm:inline">เปลี่ยน PIN</span></button>
+          <button onClick={onSignOut} aria-label="ออกจากระบบ" title="ออกจากระบบ" className="btn btn-ghost btn-sm gap-1.5 text-base-content/70 hover:text-error"><LogOut size={15} /> <span className="hidden sm:inline">ออกจากระบบ</span></button>
           <ThemeSwitcher />
         </div>
       </header>
@@ -120,7 +120,7 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
 
       {pinOpen && !expired && <ChangePinDialog onClose={() => setPinOpen(false)} onAuthLost={onAuthLost} />}
       {expired && <ReLoginDialog staffId={session.staffId} onSignOut={onSignOut} />}
-    </div>
+    </main>
   );
 }
 

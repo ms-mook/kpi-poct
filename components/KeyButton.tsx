@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { KeyRound } from "lucide-react";
 import { getSession, type Session } from "@/lib/backend";
+import { ENTRY_HREF } from "@/lib/paths";
 
 /** Top-right key: opens the data-entry back office (/entry). Shows the
  * signed-in Staff ID next to it while a session is active. */
@@ -22,8 +22,8 @@ export function KeyButton() {
   }, []);
 
   return (
-    <Link
-      href="/entry/"
+    <a
+      href={ENTRY_HREF}
       title={session ? `หลังบ้าน · ${session.name || session.staffId}` : "เข้าสู่ระบบหลังบ้าน (กรอกข้อมูล)"}
       aria-label="เข้าสู่ระบบหลังบ้าน"
       className={`icon-badge btn glass-panel border-0 hover:text-primary ${
@@ -32,6 +32,6 @@ export function KeyButton() {
     >
       <KeyRound size={18} strokeWidth={2.2} />
       {session && <span className="text-xs font-medium">{session.staffId}</span>}
-    </Link>
+    </a>
   );
 }

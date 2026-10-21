@@ -170,14 +170,14 @@ function UsageGrid({ data, test, year, month, onSaved, onAuthLost, onResult }: {
       {error && <div className="mb-3"><StatusBanner type="error" title="บันทึกไม่สำเร็จ" message={error} /></div>}
 
       <div className="overflow-x-auto rounded-field border border-base-content/6">
-        <table className="w-full min-w-[34rem] text-sm">
+        <table className="w-full table-fixed text-sm">
           <thead className="bg-base-200/70 text-xs text-base-content/55">
             <tr>
-              <th className="w-10 px-2 py-2 text-left font-medium">#</th>
+              <th className="w-9 px-2 py-2 text-left font-medium">#</th>
               <th className="px-2 py-2 text-left font-medium">หอผู้ป่วย</th>
-              <th className="px-2 py-2 text-right font-medium" title="เดือนก่อนหน้า">{prevLabel}</th>
-              <th className="px-2 py-2 text-right font-medium" title="เดือนเดียวกันปีก่อน">{MONTH_ABBR_TH[month - 1]} {String(year - 1).slice(-2)}</th>
-              <th className="w-36 px-2 py-2 text-right font-medium">{MONTH_ABBR_TH[month - 1]} {String(year).slice(-2)}</th>
+              <th className="hidden w-20 px-2 py-2 text-right font-medium sm:table-cell" title="เดือนก่อนหน้า">{prevLabel}</th>
+              <th className="hidden w-20 px-2 py-2 text-right font-medium sm:table-cell" title="เดือนเดียวกันปีก่อน">{MONTH_ABBR_TH[month - 1]} {String(year - 1).slice(-2)}</th>
+              <th className="w-32 px-2 py-2 text-right font-medium sm:w-36">{MONTH_ABBR_TH[month - 1]} {String(year).slice(-2)}</th>
             </tr>
           </thead>
           <tbody>
@@ -198,8 +198,8 @@ function UsageGrid({ data, test, year, month, onSaved, onAuthLost, onResult }: {
                       </div>
                     )}
                   </td>
-                  <td className="stat-figure-num px-2 py-1 text-right text-xs text-base-content/45">{prevMonth.get(w)?.toLocaleString() ?? "—"}</td>
-                  <td className="stat-figure-num px-2 py-1 text-right text-xs text-base-content/45">{lastYear.get(w)?.toLocaleString() ?? "—"}</td>
+                  <td className="stat-figure-num hidden px-2 py-1 text-right text-xs text-base-content/55 sm:table-cell">{prevMonth.get(w)?.toLocaleString() ?? "—"}</td>
+                  <td className="stat-figure-num hidden px-2 py-1 text-right text-xs text-base-content/55 sm:table-cell">{lastYear.get(w)?.toLocaleString() ?? "—"}</td>
                   <td className="px-2 py-1">
                     <input
                       ref={(el) => { inputs.current[i] = el; }}
@@ -220,7 +220,8 @@ function UsageGrid({ data, test, year, month, onSaved, onAuthLost, onResult }: {
           </tbody>
           <tfoot className="bg-base-200/70 text-xs">
             <tr>
-              <td colSpan={4} className="px-2 py-2 text-right text-base-content/55">รวม ({filledCount}/{wards.length} หอ)</td>
+              <td colSpan={2} className="px-2 py-2 text-left text-base-content/55 sm:hidden">รวม ({filledCount}/{wards.length} หอ)</td>
+              <td colSpan={4} className="hidden px-2 py-2 text-right text-base-content/55 sm:table-cell">รวม ({filledCount}/{wards.length} หอ)</td>
               <td className="stat-figure-num px-3 py-2 text-right font-semibold text-base-content">{total.toLocaleString()}</td>
             </tr>
           </tfoot>
