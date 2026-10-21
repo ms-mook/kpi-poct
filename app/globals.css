@@ -1,0 +1,394 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: ocean-dark --default, ocean-light, emerald-dark, emerald-light, violet-dark, violet-light;
+}
+
+/* ---------- Theme family: Ocean (default) — blue/teal, the original look ---------- */
+@plugin "daisyui/theme" {
+  name: "ocean-dark";
+  default: true;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #0A0E18;
+  --color-base-200: #0F1524;
+  --color-base-300: #161D30;
+  --color-base-content: #E7EAF3;
+
+  --color-primary: #3DA9FC;
+  --color-primary-content: #06101E;
+  --color-secondary: #34D399;
+  --color-secondary-content: #052015;
+  --color-accent: #B794F6;
+  --color-accent-content: #140A24;
+  --color-neutral: #161D30;
+  --color-neutral-content: #E7EAF3;
+
+  --color-info: #3DA9FC;
+  --color-info-content: #06101E;
+  --color-success: #34D399;
+  --color-success-content: #052015;
+  --color-warning: #F6A75E;
+  --color-warning-content: #2B1503;
+  --color-error: #E6435A;
+  --color-error-content: #2B0309;
+
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "ocean-light";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #F6F8FC;
+  --color-base-200: #EAEEF6;
+  --color-base-300: #DCE2EE;
+  --color-base-content: #1A2233;
+
+  --color-primary: #1C7FD6;
+  --color-primary-content: #F6F8FC;
+  --color-secondary: #0E9F6E;
+  --color-secondary-content: #F6F8FC;
+  --color-accent: #8B5CF6;
+  --color-accent-content: #F6F8FC;
+  --color-neutral: #DCE2EE;
+  --color-neutral-content: #1A2233;
+
+  --color-info: #1C7FD6;
+  --color-info-content: #F6F8FC;
+  --color-success: #0E9F6E;
+  --color-success-content: #F6F8FC;
+  --color-warning: #C2690F;
+  --color-warning-content: #F6F8FC;
+  --color-error: #D6304A;
+  --color-error-content: #F6F8FC;
+
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* ---------- Theme family: Emerald — green/teal forward ---------- */
+@plugin "daisyui/theme" {
+  name: "emerald-dark";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #081411;
+  --color-base-200: #0C1B17;
+  --color-base-300: #122820;
+  --color-base-content: #E4F3EC;
+
+  --color-primary: #34D399;
+  --color-primary-content: #052015;
+  --color-secondary: #3DA9FC;
+  --color-secondary-content: #06101E;
+  --color-accent: #F6A75E;
+  --color-accent-content: #2B1503;
+  --color-neutral: #122820;
+  --color-neutral-content: #E4F3EC;
+
+  --color-info: #3DA9FC;
+  --color-info-content: #06101E;
+  --color-success: #34D399;
+  --color-success-content: #052015;
+  --color-warning: #F6A75E;
+  --color-warning-content: #2B1503;
+  --color-error: #E6435A;
+  --color-error-content: #2B0309;
+
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "emerald-light";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #F5FAF7;
+  --color-base-200: #E8F3EC;
+  --color-base-300: #D9EAE1;
+  --color-base-content: #122018;
+
+  --color-primary: #0E9F6E;
+  --color-primary-content: #F5FAF7;
+  --color-secondary: #1C7FD6;
+  --color-secondary-content: #F5FAF7;
+  --color-accent: #C2690F;
+  --color-accent-content: #F5FAF7;
+  --color-neutral: #D9EAE1;
+  --color-neutral-content: #122018;
+
+  --color-info: #1C7FD6;
+  --color-info-content: #F5FAF7;
+  --color-success: #0E9F6E;
+  --color-success-content: #F5FAF7;
+  --color-warning: #C2690F;
+  --color-warning-content: #F5FAF7;
+  --color-error: #D6304A;
+  --color-error-content: #F5FAF7;
+
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* ---------- Theme family: Violet — purple/rose forward ---------- */
+@plugin "daisyui/theme" {
+  name: "violet-dark";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: #0D0B16;
+  --color-base-200: #130F20;
+  --color-base-300: #1C1630;
+  --color-base-content: #ECE8F7;
+
+  --color-primary: #B794F6;
+  --color-primary-content: #140A24;
+  --color-secondary: #3DA9FC;
+  --color-secondary-content: #06101E;
+  --color-accent: #F472B6;
+  --color-accent-content: #2B0318;
+  --color-neutral: #1C1630;
+  --color-neutral-content: #ECE8F7;
+
+  --color-info: #3DA9FC;
+  --color-info-content: #06101E;
+  --color-success: #34D399;
+  --color-success-content: #052015;
+  --color-warning: #F6A75E;
+  --color-warning-content: #2B1503;
+  --color-error: #E6435A;
+  --color-error-content: #2B0309;
+
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "violet-light";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #FAF8FD;
+  --color-base-200: #F0EBF9;
+  --color-base-300: #E3D9F3;
+  --color-base-content: #1E1830;
+
+  --color-primary: #8B5CF6;
+  --color-primary-content: #FAF8FD;
+  --color-secondary: #1C7FD6;
+  --color-secondary-content: #FAF8FD;
+  --color-accent: #DB2777;
+  --color-accent-content: #FAF8FD;
+  --color-neutral: #E3D9F3;
+  --color-neutral-content: #1E1830;
+
+  --color-info: #1C7FD6;
+  --color-info-content: #FAF8FD;
+  --color-success: #0E9F6E;
+  --color-success-content: #FAF8FD;
+  --color-warning: #C2690F;
+  --color-warning-content: #FAF8FD;
+  --color-error: #D6304A;
+  --color-error-content: #FAF8FD;
+
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme inline {
+  --color-background: var(--color-base-100);
+  --color-foreground: var(--color-base-content);
+  --font-sans: "IBM Plex Sans Thai", "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Generic single-series chart accent (hero sparkline, yearly trend, KPI
+     trend lines) and the ambient-glow pair — these intentionally track the
+     chosen theme family's primary/accent, not a fixed point color. The
+     per-จุดบริการ palette lives in lib/point-meta.ts and never changes with
+     the theme, since that mapping is a data identity, not UI chrome. */
+  --color-opd: var(--color-primary);
+  --color-blood: var(--color-accent);
+}
+
+:root {
+  --background: var(--color-base-100);
+  --foreground: var(--color-base-content);
+  --glass-tint: white;
+  --glass-border: 8%;
+  --glass-hover-border: 16%;
+  --ambient-opacity: 0.16;
+}
+
+[data-theme$="-light"] {
+  --glass-tint: black;
+  --glass-border: 7%;
+  --glass-hover-border: 14%;
+  --ambient-opacity: 0.09;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+@supports (font-variation-settings: normal) {
+  :root {
+    font-optical-sizing: auto;
+  }
+}
+
+/* ---------- Ambient background: two slow-drifting gradient blobs ----------
+   A single orchestrated ambient effect behind the glass panels — not a
+   per-element hover trick. Respects reduced motion (frozen, still visible). */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: var(--color-base-100);
+}
+.ambient-bg::before,
+.ambient-bg::after {
+  content: "";
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 9999px;
+  filter: blur(110px);
+  opacity: var(--ambient-opacity);
+  will-change: transform;
+  transition: opacity 0.4s ease;
+}
+.ambient-bg::before {
+  background: radial-gradient(circle at 30% 30%, var(--color-opd), transparent 70%);
+  top: -20vmax;
+  left: -10vmax;
+  animation: drift-a 36s ease-in-out infinite alternate;
+}
+.ambient-bg::after {
+  background: radial-gradient(circle at 70% 70%, var(--color-blood), transparent 70%);
+  bottom: -24vmax;
+  right: -14vmax;
+  animation: drift-b 42s ease-in-out infinite alternate;
+}
+@keyframes drift-a {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(6vmax, 8vmax) scale(1.08); }
+}
+@keyframes drift-b {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(-7vmax, -5vmax) scale(1.1); }
+}
+
+/* ---------- Glass panel ---------- */
+.glass-panel {
+  background: color-mix(in oklab, var(--color-base-200) 72%, transparent);
+  border: 1px solid color-mix(in oklab, var(--glass-tint) var(--glass-border), transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+/* ---------- Bento load-in: one orchestrated stagger, not per-card hover tricks ---------- */
+@keyframes bento-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.bento-enter {
+  animation: bento-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* Capped at 8 slots (560ms) so a long grid's last cards fade in quickly
+     after the first ones instead of trailing in a second or more later. */
+  animation-delay: calc(min(var(--bento-i, 0), 8) * 70ms);
+}
+
+.card-hover {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.card-hover:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--glass-tint) var(--glass-hover-border), transparent);
+  box-shadow: 0 20px 40px -24px color-mix(in oklab, var(--color-base-content) 35%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-bg::before,
+  .ambient-bg::after { animation: none; }
+  .bento-enter { animation: none; opacity: 1; transform: none; }
+  .card-hover { transition: none; }
+  .card-hover:hover { transform: none; }
+  * { scroll-behavior: auto !important; }
+}
+
+/* Tabular numerals everywhere a KPI figure appears, so stacked digits align. */
+.stat-figure-num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- Status banners ("fire cards") ---------- */
+@keyframes banner-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.banner-enter {
+  animation: banner-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* A slow breathing glow for an icon badge that needs attention (a FAIL tile,
+   a live indicator) — subtle, never flashing/strobing. */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.pulse-dot {
+  animation: soft-pulse 2.2s ease-in-out infinite;
+}
+
+/* Icon badge: gentle lift + glow on hover, used for header/brand icons. */
+.icon-badge {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+}
+.icon-badge:hover {
+  transform: scale(1.08) rotate(-4deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner-enter { animation: none; }
+  .pulse-dot { animation: none; }
+  .icon-badge:hover { transform: none; }
+}
