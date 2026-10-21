@@ -166,10 +166,19 @@ export function UsageSection({ data, test, fy, grouped, monthIdx }: {
   const anomalySet = useMemo(() => new Set(allAnomalies.map((a) => anomalyKey(a.ward, a.year, a.month))), [allAnomalies]);
   const anomalyWards = new Set(anomalies.map((a) => a.ward)).size;
 
-  const wardStats = useMemo(
-    () => (sel ? wardTotalsForMonth(usage, test, sel.year, sel.month) : wardTotalsWithChange(usage, test, fy)),
-    [usage, test, fy, sel?.year, sel?.month], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  // Year view: bars stay the fiscal-year totals, but the % beside each ward is
+  // the latest complete month against the month before it (not last year).
+  const wardStats = useMemo(() => {
+    if (sel) return wardTotalsForMonth(usage, test, sel.year, sel.month);
+    const mom = new Map(lastPair ? wardTotalsForMonth(usage, test, lastPair.year, lastPair.month).map((w) => [w.ward, w.change]) : []);
+    return wardTotalsWithChange(usage, test, fy).map((w) => ({ ...w, change: mom.get(w.ward) ?? null }));
+  }, [usage, test, fy, sel?.year, sel?.month, lastPair?.year, lastPair?.month]); // eslint-disable-line react-hooks/exhaustive-deps
+  const momRef = lastPair
+    ? {
+        cur: `${MONTH_NAMES_TH[lastPair.month - 1]} ${lastPair.year}`,
+        prev: lastPair.month === 1 ? `${MONTH_NAMES_TH[11]} ${lastPair.year - 1}` : `${MONTH_NAMES_TH[lastPair.month - 2]} ${lastPair.year}`,
+      }
+    : null;
   const yearWardNames = useMemo(() => wardTotalsWithChange(usage, test, fy).map((w) => w.ward), [usage, test, fy]);
   const sortedWards = useMemo(() => {
     if (sort === "total") return wardStats;
@@ -376,7 +385,7 @@ export function UsageSection({ data, test, fy, grouped, monthIdx }: {
             title={`${grouped ? "หอผู้ป่วย" : "หอผู้ป่วย/เครื่อง"} · ${sel ? selLabel : `ปีงบ ${fy}`}`}
             sub={sel
               ? `% = เทียบเดือนก่อนหน้า (${sel.month === 1 ? `${MONTH_NAMES_TH[11]} ${sel.year - 1}` : `${MONTH_NAMES_TH[sel.month - 2]} ${sel.year}`}) · แตะชื่อเพื่อดูรายละเอียด`
-              : hasPrev ? `% = เปลี่ยนแปลงจากปีงบ ${fy - 1} (เดือนเดียวกัน) · แตะชื่อเพื่อดูรายละเอียด` : "แตะชื่อเพื่อดูรายละเอียดรายเดือน"}
+              : momRef ? `ยอดรวมทั้งปี · % = ${momRef.cur} เทียบเดือนก่อนหน้า (${momRef.prev}) · แตะชื่อเพื่อดูรายละเอียด` : "แตะชื่อเพื่อดูรายละเอียดรายเดือน"}
           />
           {wardStats.length === 0 && (
             <p className="py-8 text-center text-sm text-base-content/50">ยังไม่มีข้อมูล{sel ? `เดือน${selLabel}` : ""}</p>
