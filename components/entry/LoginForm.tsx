@@ -8,37 +8,19 @@ import { RingsArt } from "./RingsArt";
 import { login } from "@/lib/backend";
 import { HOME_HREF } from "@/lib/paths";
 
-const REMEMBER_KEY = "kpi-poct-last-staff";
-
-// Per-browser convenience only: the Staff ID (never the PIN) is remembered.
-function readRemembered(): string {
-  try { return localStorage.getItem(REMEMBER_KEY) ?? ""; } catch { return ""; }
-}
-function writeRemembered(id: string | null) {
-  try { if (id) localStorage.setItem(REMEMBER_KEY, id); else localStorage.removeItem(REMEMBER_KEY); } catch { /* storage blocked */ }
-}
-
-const FACTS = [
-  "กรอกจำนวนการใช้งานรายหอและตัวชี้วัดคุณภาพรายเดือน",
-  "บันทึกแล้ว Dashboard อัปเดตทันที",
-  "เข้าได้เฉพาะเจ้าหน้าที่ที่มี Staff ID",
-];
-
 export function LoginForm() {
-  // Mounted only after the page has checked the session on the client, so
-  // reading localStorage during the first render cannot mismatch the server HTML.
-  const [staffId, setStaffId] = useState(readRemembered);
+  const [staffId, setStaffId] = useState("");
   const [pin, setPin] = useState("");
-  const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPin, setShowPin] = useState(false);
   const pinRef = useRef<HTMLInputElement>(null);
   const idRef = useRef<HTMLInputElement>(null);
 
-  // Returning staff: Staff ID is filled in and the cursor lands on the PIN.
   useEffect(() => {
-    (readRemembered() ? pinRef : idRef).current?.focus();
+    idRef.current?.focus();
+    // An earlier version could remember the Staff ID in this browser; clear it.
+    try { localStorage.removeItem("kpi-poct-last-staff"); } catch { /* storage blocked */ }
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -48,7 +30,6 @@ export function LoginForm() {
     setError(null);
     try {
       await login(id, pin);
-      writeRemembered(remember ? id.toUpperCase() : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setPin("");
@@ -74,9 +55,6 @@ export function LoginForm() {
         <div className="relative max-w-md">
           <h2 className="text-2xl font-semibold leading-snug text-base-content">KPI Dashboard — POCT Center</h2>
           <p className="mt-1 text-sm text-base-content/70">หน่วยเจาะเลือดเก็บสิ่งส่งตรวจและ POCT · รพ.ศรีนครินทร์</p>
-          <ul className="mt-7 space-y-2.5 border-l-2 border-primary/40 pl-4 text-sm text-base-content/80">
-            {FACTS.map((f) => <li key={f}>{f}</li>)}
-          </ul>
         </div>
       </aside>
 
@@ -94,8 +72,7 @@ export function LoginForm() {
       <section className="relative flex flex-col justify-center px-6 py-10 sm:px-12 lg:px-16">
         <ThemeSwitcher className="absolute right-4 top-4 lg:right-6 lg:top-6" />
         <form onSubmit={handleSubmit} className="mx-auto w-full max-w-sm" noValidate>
-          <h1 className="text-2xl font-semibold text-base-content">เข้าสู่ระบบหลังบ้าน</h1>
-          <p className="mb-8 mt-1.5 text-sm text-base-content/70">ใส่ Staff ID และ PIN เพื่อกรอกข้อมูลประจำเดือน</p>
+          <h1 className="mb-8 text-2xl font-semibold text-base-content">เข้าสู่ระบบผู้ดูแล</h1>
 
           <label htmlFor="staff-id" className="mb-1.5 block text-sm font-medium text-base-content/85">Staff ID</label>
           <div className="relative mb-5">
@@ -138,11 +115,6 @@ export function LoginForm() {
             </button>
           </div>
 
-          <label className="mt-4 flex w-fit cursor-pointer items-center gap-2.5 text-sm text-base-content/80">
-            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="checkbox checkbox-sm checkbox-primary" />
-            จำ Staff ID ในเครื่องนี้
-          </label>
-
           {error && (
             <div role="alert" className="mt-5 flex items-start gap-2.5 rounded-field bg-error/12 px-3.5 py-3 text-sm text-error">
               <AlertCircle size={18} className="mt-px shrink-0" />
@@ -159,11 +131,7 @@ export function LoginForm() {
             {loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
           </button>
 
-          <p className="mt-6 text-sm leading-relaxed text-base-content/65">
-            ยังไม่มี Staff ID หรือลืม PIN ให้ผู้ดูแล Google Sheet ตั้งให้ใหม่จากเมนู “🔑 POCT หลังบ้าน”
-          </p>
-
-          <a href={HOME_HREF} className="mt-5 inline-flex items-center gap-1.5 rounded-field text-sm font-medium text-base-content/80 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
+          <a href={HOME_HREF} className="mt-6 inline-flex items-center gap-1.5 rounded-field text-sm font-medium text-base-content/80 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
             <ArrowLeft size={16} /> กลับไปดู Dashboard
           </a>
         </form>

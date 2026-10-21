@@ -24,8 +24,8 @@ export function KeyButton() {
   return (
     <a
       href={ENTRY_HREF}
-      title={session ? `หลังบ้าน · ${session.name || session.staffId}` : "เข้าสู่ระบบหลังบ้าน (กรอกข้อมูล)"}
-      aria-label="เข้าสู่ระบบหลังบ้าน"
+      title={session ? `หลังบ้าน · ${session.name || session.staffId}` : "เข้าสู่ระบบผู้ดูแล (กรอกข้อมูล)"}
+      aria-label="เข้าสู่ระบบผู้ดูแล"
       className={`icon-badge btn glass-panel border-0 hover:text-primary ${
         session ? "btn-sm h-10 gap-1.5 rounded-full px-3 text-primary" : "btn-circle btn-ghost text-base-content/60"
       }`}

@@ -7,3 +7,4 @@ export const HOME_HREF = `${BASE_PATH}/`;
 export const ENTRY_HREF = `${BASE_PATH}/entry/`;
 export const LOGO_HREF = `${BASE_PATH}/logo.png`;
 export const LOGO_MARK_HREF = `${BASE_PATH}/logo-mark.png`;
+export const LOGO_MARK_SM_HREF = `${BASE_PATH}/logo-mark-sm.png`;

@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { LogoMark } from "@/components/Logo";
-import { ArrowLeft, KeyRound, LayoutDashboard, Loader2, LogOut, ShieldCheck, Syringe } from "lucide-react";
+import { ArrowLeft, KeyRound, LayoutDashboard, Loader2, LogOut, ShieldCheck, Syringe, Table2 } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { StatusBanner } from "@/components/StatusBanner";
 import { LoginForm } from "@/components/entry/LoginForm";
 import { UsageEntryForm } from "@/components/entry/UsageEntryForm";
 import { KpiEntryForm } from "@/components/entry/KpiEntryForm";
+import { DataTables } from "@/components/entry/DataTables";
 import { ChangePinDialog } from "@/components/entry/ChangePinDialog";
 import { APPS_SCRIPT_URL, getSession, login, logout, type Session } from "@/lib/backend";
 import { loadDataset, type Dataset } from "@/lib/data";
@@ -16,6 +17,7 @@ import { HOME_HREF } from "@/lib/paths";
 const TABS = [
   { id: "usage", label: "จำนวนการใช้งาน", icon: Syringe },
   { id: "kpi", label: "ตัวชี้วัดคุณภาพ", icon: ShieldCheck },
+  { id: "tables", label: "ตารางข้อมูล · Excel", icon: Table2 },
 ] as const;
 
 export default function EntryPage() {
@@ -78,7 +80,7 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
   const onAuthLost = useCallback(() => {}, []);
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-5 pb-24 sm:px-6">
+    <main className={`mx-auto w-full px-4 py-5 pb-24 sm:px-6 ${tab === "tables" ? "max-w-7xl" : "max-w-4xl"}`}>
       <header className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-base-content/8 pb-4">
         <div className="flex items-center gap-3">
           <LogoMark size={48} />
@@ -113,8 +115,10 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
         <StatusBanner type="error" title="อ่านข้อมูลจาก Google Sheet ไม่ได้ — ยังบันทึกไม่ได้" message={data.liveError ?? "ไม่ทราบสาเหตุ"} />
       ) : tab === "usage" ? (
         <UsageEntryForm data={data} onSaved={reload} onAuthLost={onAuthLost} />
-      ) : (
+      ) : tab === "kpi" ? (
         <KpiEntryForm data={data} onSaved={reload} onAuthLost={onAuthLost} />
+      ) : (
+        <DataTables data={data} />
       )}
 
       {pinOpen && !expired && <ChangePinDialog onClose={() => setPinOpen(false)} onAuthLost={onAuthLost} />}
