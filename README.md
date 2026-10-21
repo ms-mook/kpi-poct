@@ -9,11 +9,13 @@
 - **แนวโน้ม & พยากรณ์** — แนวโน้มรายเดือนทั้งหมดของ Glucose และ Blood gas พร้อมพยากรณ์ 12 เดือน (ตามฤดูกาล,
   ทดสอบย้อนหลังคลาดเคลื่อน ~3%/เดือน) และแนวโน้มรายหอของ Blood gas
 - **ตัวชี้วัดคุณภาพ** — 5 ตัวชี้วัด (10 รายการย่อย) พร้อมสถานะผ่าน/ไม่ผ่านเกณฑ์และแนวโน้มทั้งปี
-- **🔑 หลังบ้าน** — กรอกจำนวนการใช้งาน/ตัวชี้วัดรายเดือน ด้วย Staff ID + PIN (บันทึกลง Google Sheet ผ่าน Apps Script)
+- **🔑 หน้าผู้ดูแล** — ด้วย Staff ID + PIN (บันทึกลง Google Sheet ผ่าน Apps Script): กรอกจำนวนการใช้งาน/ตัวชี้วัดรายเดือน,
+  ตารางข้อมูล + ส่งออก Excel, monitor เครื่องตาม SN, ตั้งค่าหอผู้ป่วย/เครื่อง/ตัวชี้วัด (เพิ่ม แก้ไข ปิดใช้งาน)
+- **ตัวกรองช่วงเวลา** — ปีงบประมาณ/เดือน หรือกำหนดช่วงเดือนเอง (ข้ามปีงบได้)
 - เตือนเดือนที่ยอดใช้ต่ำผิดปกติ · แยก/รวมเครื่องในหอเดียวกัน · เดือนที่กรอกยังไม่ครบไม่ถูกนับ
 
 **Stack:** Next.js 16 (static export) · Tailwind 4 + daisyUI · Recharts · Google Sheets + Apps Script (หลังบ้าน)
-**Hosting:** GitHub Pages (ดู [SETUP.md](SETUP.md))
+**Hosting:** Vercel (ดู [SETUP.md](SETUP.md))
 
 ## โครงสร้าง
 
@@ -22,12 +24,12 @@ app/page.tsx              หน้าแดชบอร์ด
 components/               UsageSection, KpiSection + การ์ด/ธีมจาก kpi-dashboard
 lib/data.ts               อ่าน Google Sheet (หรือ snapshot) → ข้อมูลแต่ละแท็บ
 lib/aggregate.ts          สรุปยอด / คำนวณตัวชี้วัด / เกณฑ์ผ่าน
+lib/range.ts, lib/fleet.ts  ช่วงเดือนกำหนดเอง / ประวัติและสถานะเครื่อง (SN)
 lib/forecast.ts           พยากรณ์รายเดือน (+ backtest)
 lib/backend.ts            เรียกหลังบ้าน (login / บันทึก)
-app/entry/                หน้ากรอกข้อมูล (ปุ่ม 🔑)
+app/entry/                หน้าผู้ดูแล (ปุ่ม 🔑)
 apps-script/Code.gs       หลังบ้าน: วางใน Google Sheet → ส่วนขยาย → Apps Script
 apps-script/dev-server.mjs  หลังบ้านจำลองสำหรับพัฒนา/ทดสอบ (รัน Code.gs ตัวจริงใน Node)
 lib/snapshot.json         ข้อมูลสำรองที่ฝังในเว็บ (สร้างจาก data/*.xlsx)
-data/POCT_KPI_Database.xlsx  ไฟล์ต้นแบบ Google Sheet (8 แท็บ)
-.github/workflows/        build + deploy GitHub Pages อัตโนมัติ
+data/POCT_KPI_Database.xlsx  ไฟล์ต้นแบบ Google Sheet (ต้นแบบ — แท็บ "เครื่อง POCT (ประวัติ)" ระบบสร้างให้เอง)
 ```

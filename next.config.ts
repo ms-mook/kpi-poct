@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
-// GitHub Pages serves static files only, so the whole site is exported to
-// plain HTML/JS (`out/`). The site lives under https://<user>.github.io/kpi-poct/
-// on Pages, hence the basePath; the deploy workflow sets NEXT_PUBLIC_BASE_PATH.
-// Leave it empty for local dev or when the site later moves to Vercel.
+// The site is exported to plain static HTML/JS (`out/`) and hosted on Vercel,
+// at the root of the domain — leave NEXT_PUBLIC_BASE_PATH empty. It exists only
+// for hosting under a sub-folder (e.g. a GitHub Pages project site).
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 const nextConfig: NextConfig = {
