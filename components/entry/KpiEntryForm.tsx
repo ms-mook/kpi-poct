@@ -125,6 +125,10 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
     return Array.from(map.values());
   }, [configs]);
 
+  // กลุ่มที่มีช่องรายละเอียด (IQC, EQA) อยู่แถวบน 2 คอลัมน์เต็มความกว้าง · กลุ่มอื่นอยู่แถวล่าง 3 คอลัมน์
+  const wideGroups = groups.filter((g) => NOTE_GROUPS.includes(g[0].group));
+  const compactGroups = groups.filter((g) => !NOTE_GROUPS.includes(g[0].group));
+
   async function save() {
     if (invalid.length) return;
     const clearing = allFields.filter(({ k }) => !(values[k] ?? "").trim() && initial[k]);
@@ -161,12 +165,14 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
       </div>
       {error && <StatusBanner type="error" title="บันทึกไม่สำเร็จ" message={error} />}
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-        {groups.map((items) => (
+      <div className="space-y-4">
+      {[wideGroups, compactGroups].map((list, li) => list.length > 0 && (
+      <div key={li} className={`grid grid-cols-1 items-stretch gap-4 ${li === 0 ? "lg:grid-cols-2" : "md:grid-cols-2 xl:grid-cols-3"}`}>
+        {list.map((items) => (
           <div key={items[0].group} className="glass-panel rounded-box p-4">
             <h3 className="text-sm font-semibold leading-snug text-base-content">{items[0].name.split(" — ")[0]}</h3>
             <p className="mb-3 mt-0.5 text-xs text-base-content/50">เกณฑ์: {items[0].criteria}</p>
-            <div className="space-y-3">
+            <div className={NOTE_GROUPS.includes(items[0].group) ? "grid grid-cols-1 gap-3 2xl:grid-cols-2" : "space-y-3"}>
               {items.map((cfg) => {
                 const r = kpiResult(cfg, previewRows, data.usage, year, month, data.wards);
                 const st = kpiStatus(cfg, r);
@@ -237,6 +243,8 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
             </div>
           </div>
         ))}
+      </div>
+      ))}
       </div>
 
       <div className="sticky bottom-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-box border border-base-content/8 bg-base-200/90 p-3 backdrop-blur">
