@@ -43,6 +43,8 @@ export type DeviceRow = {
 };
 const fyOf = (y: number, m: number) => (m >= 10 ? y + 1 : y);
 /** value === null means "ND" (ไม่ได้ดำเนินการ): recorded on purpose, never used in any calculation. */
+/** กลุ่มตัวชี้วัดที่มีช่อง "รายละเอียดสถานที่ตั้งเครื่อง / หอที่ไม่ผ่านเกณฑ์" (IQC %CV และ EQA) */
+export const NOTE_GROUPS = ["iqc", "eqa"];
 export type KpiNote = { year: number; month: number; indicator: string; text: string };
 export type KpiRow = { year: number; month: number; indicator: string; field: string; value: number | null };
 

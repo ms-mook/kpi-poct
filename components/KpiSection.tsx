@@ -7,7 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import { BentoCard } from "./BentoCard";
 import { StatusBanner } from "./StatusBanner";
 import { fiscalYearMonths, fiscalYearOf, MONTH_ABBR_TH, MONTH_NAMES_TH } from "@/lib/constants";
-import type { Dataset, KpiConfig } from "@/lib/data";
+import { NOTE_GROUPS, type Dataset, type KpiConfig } from "@/lib/data";
 import { availableKpiYears, kpiIsND, kpiResult, kpiStatus, kpiYearSeries, kpiYearSummary, type KpiResult } from "@/lib/aggregate";
 import { useChartColors } from "@/lib/chart-colors";
 
@@ -175,7 +175,7 @@ export function KpiSection({ data }: { data: Dataset }) {
                 // rounds a year get one chip per round.
                 const sparse = points > 0 && points <= 4;
                 const sub = cfg.name.split(" — ")[1] ?? cfg.shortName;
-                const noteText = data.kpiNotes.find((n) => n.indicator === cfg.id && n.year === (fallback?.year ?? view.year) && n.month === (fallback?.month ?? view.month))?.text;
+                const noteText = !NOTE_GROUPS.includes(cfg.group) ? undefined : data.kpiNotes.find((n) => n.indicator === cfg.id && n.year === (fallback?.year ?? view.year) && n.month === (fallback?.month ?? view.month))?.text;
                 const ratio = r?.numerator != null && r.denominator != null
                   ? `${r.numerator.toLocaleString()} / ${r.denominator.toLocaleString()}`
                   : cfg.kind === "count" && r ? "ยังไม่มีจำนวนผู้ต้องสอบทั้งหมด จึงยังคิดร้อยละไม่ได้" : "";

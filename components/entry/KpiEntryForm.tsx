@@ -5,7 +5,7 @@ import { CheckCircle2, Info, Loader2, Save, Undo2, XCircle } from "lucide-react"
 import { StatusBanner } from "../StatusBanner";
 import { PeriodPicker, nextMonthToFill } from "./PeriodPicker";
 import { MONTH_NAMES_TH } from "@/lib/constants";
-import { isND, type Dataset, type KpiConfig, type KpiRow } from "@/lib/data";
+import { isND, NOTE_GROUPS, type Dataset, type KpiConfig, type KpiRow } from "@/lib/data";
 import { autoDenominatorTest, kpiResult, kpiStatus, monthCompleteness, monthTotal } from "@/lib/aggregate";
 import { AuthError, saveKpi, type SaveResult } from "@/lib/backend";
 
@@ -90,7 +90,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
 
   const initialNotes = useMemo(() => {
     const out: Record<string, string> = {};
-    for (const c of configs) out[c.id] = data.kpiNotes.find((n) => n.year === year && n.month === month && n.indicator === c.id)?.text ?? "";
+    for (const c of configs.filter((c) => NOTE_GROUPS.includes(c.group))) out[c.id] = data.kpiNotes.find((n) => n.year === year && n.month === month && n.indicator === c.id)?.text ?? "";
     return out;
   }, [configs, data.kpiNotes, year, month]);
   const [values, setValues] = useState<Record<string, string>>(initial);
@@ -98,7 +98,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const notesDirty = configs.some((c) => (notes[c.id] ?? "").trim() !== (initialNotes[c.id] ?? "").trim());
+  const notesDirty = configs.some((c) => NOTE_GROUPS.includes(c.group) && (notes[c.id] ?? "").trim() !== (initialNotes[c.id] ?? "").trim());
   const dirty = notesDirty || allFields.some(({ k }) => (values[k] ?? "") !== (initial[k] ?? ""));
   const invalid = allFields.filter(({ f, k }) => {
     const v = parseNum(values[k] ?? "");
@@ -134,7 +134,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
       const entries = allFields
         .filter(({ k }) => (values[k] ?? "") !== (initial[k] ?? ""))
         .map(({ cfg, k }) => ({ indicator: cfg.id, field: k, value: parseNum(values[k] ?? "") as number | string | null }));
-      for (const c of configs) {
+      for (const c of configs.filter((c) => NOTE_GROUPS.includes(c.group))) {
         const t = (notes[c.id] ?? "").trim();
         if (t !== (initialNotes[c.id] ?? "").trim()) entries.push({ indicator: c.id, field: fkey(c.id, "note"), value: t });
       }
@@ -220,7 +220,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
                         </div>
                       )}
                     </div>
-                    <label className="mt-2 block">
+                    {NOTE_GROUPS.includes(cfg.group) && <label className="mt-2 block">
                       <span className="mb-1 block text-[11px] leading-snug text-base-content/55">รายละเอียดสถานที่ตั้งเครื่อง / หอผู้ป่วยที่ไม่ผ่านเกณฑ์ (ถ้ามี)</span>
                       <textarea
                         rows={2}
@@ -230,7 +230,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
                         className={`textarea textarea-bordered w-full bg-base-100/60 text-sm leading-snug ${(notes[cfg.id] ?? "").trim() !== (initialNotes[cfg.id] ?? "").trim() ? "textarea-primary" : ""}`}
                         placeholder="เช่น เครื่อง SN 12345 หอผู้ป่วย 4ข, เครื่อง SN 67890 ICU"
                       />
-                    </label>
+                    </label>}
                   </div>
                 );
               })}
