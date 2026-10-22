@@ -88,11 +88,18 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
     return out;
   }, [allFields, data.kpi, year, month]);
 
+  const initialNotes = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const c of configs) out[c.id] = data.kpiNotes.find((n) => n.year === year && n.month === month && n.indicator === c.id)?.text ?? "";
+    return out;
+  }, [configs, data.kpiNotes, year, month]);
   const [values, setValues] = useState<Record<string, string>>(initial);
+  const [notes, setNotes] = useState<Record<string, string>>(initialNotes);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const dirty = allFields.some(({ k }) => (values[k] ?? "") !== (initial[k] ?? ""));
+  const notesDirty = configs.some((c) => (notes[c.id] ?? "").trim() !== (initialNotes[c.id] ?? "").trim());
+  const dirty = notesDirty || allFields.some(({ k }) => (values[k] ?? "") !== (initial[k] ?? ""));
   const invalid = allFields.filter(({ f, k }) => {
     const v = parseNum(values[k] ?? "");
     return Number.isNaN(v) || (f.percent && typeof v === "number" && v > 100);
@@ -126,7 +133,11 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
     try {
       const entries = allFields
         .filter(({ k }) => (values[k] ?? "") !== (initial[k] ?? ""))
-        .map(({ cfg, k }) => ({ indicator: cfg.id, field: k, value: parseNum(values[k] ?? "") }));
+        .map(({ cfg, k }) => ({ indicator: cfg.id, field: k, value: parseNum(values[k] ?? "") as number | string | null }));
+      for (const c of configs) {
+        const t = (notes[c.id] ?? "").trim();
+        if (t !== (initialNotes[c.id] ?? "").trim()) entries.push({ indicator: c.id, field: fkey(c.id, "note"), value: t });
+      }
       const r = await saveKpi({ year, month, entries });
       await onSaved();
       onResult(r);
@@ -209,6 +220,17 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
                         </div>
                       )}
                     </div>
+                    <label className="mt-2 block">
+                      <span className="mb-1 block text-[11px] leading-snug text-base-content/55">รายละเอียดสถานที่ตั้งเครื่อง / หอผู้ป่วยที่ไม่ผ่านเกณฑ์ (ถ้ามี)</span>
+                      <textarea
+                        rows={2}
+                        maxLength={500}
+                        value={notes[cfg.id] ?? ""}
+                        onChange={(e) => { setNotes((p) => ({ ...p, [cfg.id]: e.target.value })); onResult(null); }}
+                        className={`textarea textarea-bordered w-full bg-base-100/60 text-sm leading-snug ${(notes[cfg.id] ?? "").trim() !== (initialNotes[cfg.id] ?? "").trim() ? "textarea-primary" : ""}`}
+                        placeholder="เช่น เครื่อง SN 12345 หอผู้ป่วย 4ข, เครื่อง SN 67890 ICU"
+                      />
+                    </label>
                   </div>
                 );
               })}
@@ -224,7 +246,7 @@ function KpiGrid({ data, year, month, onSaved, onAuthLost, onResult }: {
             : <span className="inline-flex items-center gap-1"><CheckCircle2 size={13} className="text-success" />ตรงกับข้อมูลในชีต</span>}
         </div>
         <div className="flex gap-2">
-          <button className="btn btn-ghost btn-sm gap-1" disabled={!dirty || saving} onClick={() => { setValues(initial); onResult(null); }}>
+          <button className="btn btn-ghost btn-sm gap-1" disabled={!dirty || saving} onClick={() => { setValues(initial); setNotes(initialNotes); onResult(null); }}>
             <Undo2 size={14} /> คืนค่าเดิม
           </button>
           <button className="btn btn-primary btn-sm gap-1.5" disabled={!dirty || saving || invalid.length > 0} onClick={save}>

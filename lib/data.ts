@@ -43,6 +43,7 @@ export type DeviceRow = {
 };
 const fyOf = (y: number, m: number) => (m >= 10 ? y + 1 : y);
 /** value === null means "ND" (ไม่ได้ดำเนินการ): recorded on purpose, never used in any calculation. */
+export type KpiNote = { year: number; month: number; indicator: string; text: string };
 export type KpiRow = { year: number; month: number; indicator: string; field: string; value: number | null };
 
 /** "ND" / "nd" / "N/D" / "N.D." typed in a cell. */
@@ -73,6 +74,7 @@ export type Dataset = {
   /** Content versions of the admin-editable tables (live data only) — sent back on save to detect concurrent edits. */
   versions?: { wards: string; kpiConfig: string; devices: string };
   kpi: KpiRow[];
+  kpiNotes: KpiNote[];
   kpiConfig: KpiConfig[];
   source: "live" | "snapshot";
   /** Why the live sheet wasn't used, when it was configured but failed. */
@@ -139,9 +141,20 @@ function parseDevices(fleet: Raw, legacy: Raw): DeviceRow[] {
   return out;
 }
 
+function parseKpiNotes(rows: Raw): KpiNote[] {
+  const out: KpiNote[] = [];
+  for (const [y, m, , indicator, field, value] of rows) {
+    const year = num(y), month = num(m), text = str(value);
+    if (year == null || month == null || !str(indicator) || !text || !str(field).endsWith("_note")) continue;
+    out.push({ year, month, indicator: str(indicator), text });
+  }
+  return out;
+}
+
 function parseKpi(rows: Raw): KpiRow[] {
   const out: KpiRow[] = [];
   for (const [y, m, , indicator, field, value] of rows) {
+    if (str(field).endsWith("_note")) continue; // หมายเหตุข้อความ ไม่ใช่ตัวเลข
     const year = num(y), month = num(m);
     const v = isND(value) ? null : num(value);
     if (year == null || month == null || !str(indicator) || !str(field)) continue;
@@ -183,6 +196,7 @@ function build(get: (tab: string) => Raw, source: Dataset["source"], liveError?:
     wards: parseWards(get(TAB.wards)),
     devices: parseDevices(get(TAB.fleet), get(TAB.devices)),
     kpi: parseKpi(get(TAB.kpi)),
+    kpiNotes: parseKpiNotes(get(TAB.kpi)),
     kpiConfig: parseKpiConfig(get(TAB.kpiConfig)),
     source,
     liveError,

@@ -175,6 +175,7 @@ export function KpiSection({ data }: { data: Dataset }) {
                 // rounds a year get one chip per round.
                 const sparse = points > 0 && points <= 4;
                 const sub = cfg.name.split(" — ")[1] ?? cfg.shortName;
+                const noteText = data.kpiNotes.find((n) => n.indicator === cfg.id && n.year === (fallback?.year ?? view.year) && n.month === (fallback?.month ?? view.month))?.text;
                 const ratio = r?.numerator != null && r.denominator != null
                   ? `${r.numerator.toLocaleString()} / ${r.denominator.toLocaleString()}`
                   : cfg.kind === "count" && r ? "ยังไม่มีจำนวนผู้ต้องสอบทั้งหมด จึงยังคิดร้อยละไม่ได้" : "";
@@ -196,6 +197,11 @@ export function KpiSection({ data }: { data: Dataset }) {
                         : nd ? "ไม่ได้ดำเนินการเดือนนี้ (ND) · ไม่นำไปคิด %"
                         : !r ? "ยังไม่มีผลประเมินในปีงบนี้" : ratio || " "}
                     </div>
+                    {noteText && (
+                      <p className="mt-2 rounded-field bg-base-content/5 px-2 py-1.5 text-[11px] leading-snug text-base-content/70">
+                        <span className="font-medium text-base-content/85">รายละเอียด:</span> {noteText}
+                      </p>
+                    )}
                     {sparse && <RoundChips cfg={cfg} series={yearSeries} />}
                     {!sparse && points >= 2 && (
                       <div className="mt-2 h-16">

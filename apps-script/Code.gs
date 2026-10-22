@@ -431,6 +431,12 @@ function saveKpi_(body, staffId) {
     var kind = kinds[id];
     if (!kind) throw new Error('ไม่พบตัวชี้วัด "' + id + '" ในแท็บตั้งค่า');
     var suffix = field.indexOf(id + "_") === 0 ? field.slice(id.length + 1) : "";
+    if (suffix === "note") {
+      // หมายเหตุข้อความ (เช่น หอ/เครื่องที่ไม่ผ่านเกณฑ์) — ใช้ได้กับทุกชนิด
+      var nt = cleanText_(en.value, "รายละเอียด/หมายเหตุ", 500, false);
+      wanted[id + "|" + field] = nt === "" ? null : nt;
+      return;
+    }
     if ((KIND_FIELDS[kind] || []).indexOf(suffix) < 0) throw new Error('ช่อง "' + field + '" ใช้กับตัวชี้วัดชนิด ' + kind + " ไม่ได้");
     var v = en.value;
     if (v === null || v === undefined || v === "") { wanted[id + "|" + field] = null; return; }
@@ -455,7 +461,7 @@ function saveKpi_(body, staffId) {
       if (seen[k]) { removed++; return; }
       seen[k] = true;
       if (wanted[k] === null) { removed++; return; }
-      if (cellValue_(r[5]) !== wanted[k]) updated++;
+      if (String(r[5]) !== String(wanted[k]) && cellValue_(r[5]) !== wanted[k]) updated++;
       next.push([ym.year, ym.month, MONTH_NAMES_TH[ym.month - 1], String(r[3]).trim(), String(r[4]).trim(), wanted[k]]);
     });
     Object.keys(wanted).forEach(function (k) {

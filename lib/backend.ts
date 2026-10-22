@@ -95,7 +95,7 @@ export async function saveUsage(input: {
 }
 
 export async function saveKpi(input: {
-  year: number; month: number; entries: { indicator: string; field: string; value: number | "ND" | null }[];
+  year: number; month: number; entries: { indicator: string; field: string; value: number | string | null }[];
 }): Promise<SaveResult> {
   return post<Reply & SaveResult>({ action: "saveKpi", token: token(), ...input });
 }
