@@ -135,8 +135,12 @@ export function KpiSection({ data }: { data: Dataset }) {
         />
       )}
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-        {groups.map(([group, items], gi) => {
+      {[true, false].map((wide) => {
+        const list = groups.map((g, gi) => ({ g, gi })).filter(({ g }) => NOTE_GROUPS.includes(g[0]) === wide);
+        if (list.length === 0) return null;
+        return (
+      <div key={String(wide)} className={`grid grid-cols-1 items-stretch gap-4 ${wide ? "lg:grid-cols-2" : "md:grid-cols-2 xl:grid-cols-3"}`}>
+        {list.map(({ g: [group, items], gi }) => {
           const Icon = GROUP_ICON[group] ?? ClipboardCheck;
           const title = items[0].name.split(" — ")[0];
           return (
@@ -151,6 +155,7 @@ export function KpiSection({ data }: { data: Dataset }) {
                 </div>
               </div>
 
+              <div className={wide ? "grid grid-cols-1 gap-3 2xl:grid-cols-2" : "flex flex-col gap-3"}>
               {items.map((cfg) => {
                 const yearSeries = kpiYearSeries(cfg, data.kpi, data.usage, viewFy, data.wards);
                 const here = kpiResult(cfg, data.kpi, data.usage, view.year, view.month, data.wards);
@@ -223,10 +228,13 @@ export function KpiSection({ data }: { data: Dataset }) {
                   </div>
                 );
               })}
+              </div>
             </BentoCard>
           );
         })}
       </div>
+        );
+      })}
     </div>
   );
 }
