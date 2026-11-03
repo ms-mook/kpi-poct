@@ -136,7 +136,7 @@ function EntryShell({ session, expired, onSignOut }: { session: Session; expired
 
       {pinOpen && !expired && <ChangePinDialog onClose={() => setPinOpen(false)} onAuthLost={onAuthLost} />}
       {expired && <ReLoginDialog staffId={session.staffId} onSignOut={onSignOut} />}
-      <SiteFooter note="หน้าสำหรับเจ้าหน้าที่ · ข้อมูลที่บันทึกจะเขียนลง Google Sheet และมีบันทึกการแก้ไข" />
+      <SiteFooter />
     </main>
   );
 }
