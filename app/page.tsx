@@ -13,6 +13,7 @@ import { TrendSection } from "@/components/TrendSection";
 import { loadDataset, snapshotDataset, LIVE_CONFIGURED, type Dataset } from "@/lib/data";
 import { KeyButton } from "@/components/KeyButton";
 import { availableFiscalYears, hasMultiDeviceWards, latestCompleteMonth, latestMonth, monthCompleteness, monthlyTotals } from "@/lib/aggregate";
+import { SiteFooter } from "@/components/SiteFooter";
 import { keyYM, monthsWithData, shiftKey, ymKey } from "@/lib/range";
 import { fiscalYearMonths, fiscalYearOf, MONTH_ABBR_TH, MONTH_NAMES_TH, TESTS, TEST_META, type TestType } from "@/lib/constants";
 
@@ -272,9 +273,7 @@ export default function DashboardPage() {
         <KpiSection data={data} />
       )}
 
-      <footer className="mt-10 border-t border-base-content/6 pt-4 text-center text-[11px] text-base-content/40">
-        ข้อมูลจาก Google Sheet · ปีงบประมาณนับ ต.ค.–ก.ย.
-      </footer>
+      <SiteFooter />
     </main>
   );
 }
